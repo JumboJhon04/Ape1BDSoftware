@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.1.0" />
+    <PackageReference Include="Oracle.EntityFrameworkCore" Version="9.23.90" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SistemaInventario.Aplication\SistemaInventario.Aplication.csproj" />
+    <ProjectReference Include="..\SistemaInventario.Domain\SistemaInventario.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

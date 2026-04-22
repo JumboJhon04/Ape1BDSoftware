@@ -1,0 +1,23 @@
+# Carpetas de compilación
+[Bb]in/
+[Oo]bj/
+
+# Archivos de configuración de usuario
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Carpeta oculta de Visual Studio
+.vs/
+
+# Logs
+[Ll]og/
+[Ll]ogs/
+
+# Archivos de entorno local (opcional, pero buena práctica)
+appsettings.Development.json
+
+# Mac (por si alguien clona en Mac)
+.DS_Store

@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="SistemaInventario.API/SistemaInventario.API.csproj" Id="36038816-b81b-4f4d-b9a4-cb8dc03941b2" />
+  <Project Path="SistemaInventario.Aplication/SistemaInventario.Aplication.csproj" />
+  <Project Path="SistemaInventario.Domain/SistemaInventario.Domain.csproj" />
+  <Project Path="SistemaInventario.Infrastructure/SistemaInventario.Infrastructure.csproj" />
+</Solution>
