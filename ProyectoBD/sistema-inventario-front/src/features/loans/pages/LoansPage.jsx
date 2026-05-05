@@ -125,6 +125,7 @@ function LoansPage() {
       setSuccessMessage(`Préstamo #${String(approvingLoan.idPrestamo).padStart(3, '0')} aprobado y artículos marcados como prestados.`)
       setShowApproveModal(false)
       loadLoans()
+      loadCreateReferences()
     } catch (error) {
       const errorDetail = error.response?.data?.error || error.response?.data?.detail || 'No se pudo aprobar el préstamo. Verifique la disponibilidad de los artículos.'
 
@@ -150,6 +151,7 @@ function LoansPage() {
       setSuccessMessage(`Solicitud de préstamo #${String(rejectingLoan.idPrestamo).padStart(3, '0')} rechazada.`)
       setShowRejectModal(false)
       loadLoans()
+      loadCreateReferences()
     } catch (error) {
       setErrorMessage('No se pudo rechazar la solicitud.')
       console.error(error)
@@ -172,6 +174,7 @@ function LoansPage() {
       setSuccessMessage(`Préstamo #${String(finalizingLoan.idPrestamo).padStart(3, '0')} finalizado con éxito.`)
       setShowFinalizeModal(false)
       loadLoans()
+      loadCreateReferences()
     } catch (error) {
       setErrorMessage(error.response?.data?.error ?? 'Error al finalizar el préstamo.')
     } finally {

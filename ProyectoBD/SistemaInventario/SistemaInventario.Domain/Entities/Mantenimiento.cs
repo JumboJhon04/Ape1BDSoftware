@@ -20,7 +20,7 @@ namespace SistemaInventario.Domain.Entities
         public DateTime? FechaFin { get; private set; }
         public decimal? Costo { get; private set; }
 
-        public EstadoMantenimiento Estado { get; private set; } = EstadoMantenimiento.En_progreso;
+        public EstadoMantenimiento Estado { get; private set; } = EstadoMantenimiento.Pendiente;
 
         protected Mantenimiento() { }
 
@@ -36,9 +36,26 @@ namespace SistemaInventario.Domain.Entities
             Descripcion = descripcion;
 
             FechaInicio = DateTime.Now;
+            Estado = EstadoMantenimiento.Pendiente;
+        }
+
+        public void AceptarMantenimiento()
+        {
+            if (Estado != EstadoMantenimiento.Pendiente)
+                throw new DomainException("Solo se pueden aceptar mantenimientos en estado Pendiente.");
+
             Estado = EstadoMantenimiento.En_progreso;
         }
 
+        public void RechazarMantenimiento()
+        {
+            if (Estado != EstadoMantenimiento.Pendiente)
+                throw new DomainException("Solo se pueden rechazar mantenimientos en estado Pendiente.");
+
+            // Al rechazar, el reporte queda cerrado sin pasar a mantenimiento
+            Estado = EstadoMantenimiento.Rechazado;
+            FechaFin = DateTime.Now;
+        }
         public void FinalizarMantenimiento(decimal costoFinal, string? notasFinales)
         {
             if (Estado == EstadoMantenimiento.Finalizado)

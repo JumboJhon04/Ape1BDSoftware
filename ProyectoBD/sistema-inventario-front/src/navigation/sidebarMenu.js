@@ -26,7 +26,7 @@ export function getSidebarNavEntries(role, allowedRoutes) {
       })
     }
 
-    pushPath(entries, '/prestamos', 'Mis préstamos', (loc) => loc.pathname.startsWith('/prestamos'))
+    pushPath(entries, '/mis-prestamos', 'Mis préstamos', (loc) => loc.pathname.startsWith('/mis-prestamos'))
 
     if (paths.has('/inventario')) {
       const r = routeByPath['/inventario']
@@ -58,7 +58,7 @@ export function getSidebarNavEntries(role, allowedRoutes) {
       })
     }
 
-    pushPath(entries, '/prestamos', 'Mis préstamos', (loc) => loc.pathname.startsWith('/prestamos'))
+    pushPath(entries, '/mis-prestamos', 'Mis préstamos', (loc) => loc.pathname.startsWith('/mis-prestamos'))
 
     return entries
   }

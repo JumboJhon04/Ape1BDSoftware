@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using SistemaInventario.Application.DTOs;
 using SistemaInventario.Application.Interfaces;
@@ -33,21 +33,16 @@ namespace SistemaInventario.Infrastructure.Repositories
 
                 var articulo = listaArticulos.FirstOrDefault();
 
-                // 🚩 EL CANDADO: Si no existe o NO está Disponible, rebotamos la petición
-                if (articulo == null || articulo.Estado != EstadoArticulo.Disponible)
+                // Permitimos reportar fallo sin importar el estado actual (la validación rigurosa se hace al aceptar)
+                if (articulo == null)
                 {
-                    return false;
+                    throw new InvalidOperationException("El artículo del préstamo no existe.");
                 }
 
-                // 2. Crear la entidad de mantenimiento
+                // 2. Crear la entidad de mantenimiento como reporte pendiente
                 var mantenimiento = new Mantenimiento(dto.IdArticulo, dto.Tipo, dto.ProveedorTecnico, dto.Descripcion);
 
                 await InsertarMantenimientoAsync(mantenimiento);
-
-                // 3. Bloquear el artículo
-                await _context.Database.ExecuteSqlRawAsync(
-                    "UPDATE ARTICULOS SET ESTADO = 'Mantenimiento' WHERE ID_ARTICULO = {0}",
-                    dto.IdArticulo);
 
                 await _auditoriaRepository.RegistrarAccionAsync(new AuditoriaCreateDTO
                 {
@@ -55,7 +50,7 @@ namespace SistemaInventario.Infrastructure.Repositories
                     TablaAfectada = "MANTENIMIENTOS",
                     IdRegistroAfectado = dto.IdArticulo,
                     Accion = "INSERT",
-                    DetallesCambio = $"Mantenimiento iniciado para artículo ID={dto.IdArticulo}. Tipo={dto.Tipo}"
+                    DetallesCambio = $"Reporte de mantenimiento creado para artículo ID={dto.IdArticulo}. Tipo={dto.Tipo}"
                 });
 
                 await transaction.CommitAsync();
@@ -64,7 +59,7 @@ namespace SistemaInventario.Infrastructure.Repositories
             catch (Exception)
             {
                 await transaction.RollbackAsync();
-                return false;
+                throw;
             }
         }
 
@@ -76,6 +71,10 @@ namespace SistemaInventario.Infrastructure.Repositories
                 // 1. Recuperamos solo el ID_ARTICULO para evitar hidratar columnas problemáticas en Oracle.
                 var idArticulo = await ObtenerIdArticuloPorMantenimientoAsync(dto.IdMantenimiento);
                 if (!idArticulo.HasValue) return false;
+
+                var estadoMantenimiento = await ObtenerEstadoMantenimientoAsync(dto.IdMantenimiento);
+                if (estadoMantenimiento != EstadoMantenimiento.En_progreso)
+                    return false;
 
                 // 2. Actualizar mantenimiento con SQL Crudo (Más seguro para 10g)
                 // Usamos concatenación simple para la descripción para evitar líos de sintaxis
@@ -111,6 +110,16 @@ namespace SistemaInventario.Infrastructure.Repositories
             var lista = await _context.Mantenimientos
                 .Where(m => m.IdMantenimiento == idMantenimiento)
                 .Select(m => (int?)m.IdArticulo)
+                .ToListAsync();
+
+            return lista.FirstOrDefault();
+        }
+
+        private async Task<EstadoMantenimiento?> ObtenerEstadoMantenimientoAsync(int idMantenimiento)
+        {
+            var lista = await _context.Mantenimientos
+                .Where(m => m.IdMantenimiento == idMantenimiento)
+                .Select(m => (EstadoMantenimiento?)m.Estado)
                 .ToListAsync();
 
             return lista.FirstOrDefault();
@@ -185,7 +194,8 @@ namespace SistemaInventario.Infrastructure.Repositories
                     m.FECHA_INICIO,
                     m.FECHA_FIN,
                     CAST(m.COSTO AS VARCHAR2(20)) AS COSTO,
-                    CAST(m.ESTADO_MANTENIMIENTO AS VARCHAR2(50)) AS ESTADO
+                    CAST(m.ESTADO_MANTENIMIENTO AS VARCHAR2(50)) AS ESTADO,
+                    m.ID_ARTICULO
                 FROM MANTENIMIENTOS m
                 INNER JOIN ARTICULOS a ON a.ID_ARTICULO = m.ID_ARTICULO
                 ORDER BY m.FECHA_INICIO DESC";
@@ -222,7 +232,8 @@ namespace SistemaInventario.Infrastructure.Repositories
                         FechaInicio = reader.IsDBNull(5) ? (DateTime?)null : reader.GetDateTime(5),
                         FechaFin = reader.IsDBNull(6) ? (DateTime?)null : reader.GetDateTime(6),
                         Costo = costo,
-                        Estado = reader.IsDBNull(8) ? string.Empty : reader.GetString(8)
+                        Estado = reader.IsDBNull(8) ? string.Empty : reader.GetString(8),
+                        IdArticulo = reader.IsDBNull(9) ? 0 : reader.GetInt32(9)
                     });
                 }
 
@@ -241,15 +252,15 @@ namespace SistemaInventario.Infrastructure.Repositories
                 INSERT INTO MANTENIMIENTOS
                     (ID_ARTICULO, TIPO, PROVEEDOR_TECNICO, DESCRIPCION, FECHA_INICIO, ESTADO_MANTENIMIENTO)
                 VALUES
-                    ({0}, {1}, {2}, {3}, {4}, 'En_progreso')";
+                    ({0}, {1}, {2}, {3}, {4}, 'Pendiente')";
 
             await _context.Database.ExecuteSqlRawAsync(
                 sql,
-                CrearParametro(DbType.Int32, mantenimiento.IdArticulo),
-                CrearParametro(DbType.String, mantenimiento.Tipo),
-                CrearParametro(DbType.String, mantenimiento.ProveedorTecnico),
-                CrearParametro(DbType.String, mantenimiento.Descripcion),
-                CrearParametro(DbType.DateTime, mantenimiento.FechaInicio));
+                mantenimiento.IdArticulo,
+                mantenimiento.Tipo,
+                mantenimiento.ProveedorTecnico ?? string.Empty,
+                mantenimiento.Descripcion ?? string.Empty,
+                mantenimiento.FechaInicio);
         }
 
         private async Task FinalizarMantenimientoEnBdAsync(int idMantenimiento, decimal costo)
@@ -263,9 +274,110 @@ namespace SistemaInventario.Infrastructure.Repositories
 
             await _context.Database.ExecuteSqlRawAsync(
                 sql,
-                CrearParametro(DbType.DateTime, DateTime.Now),
-                CrearParametro(DbType.Decimal, costo),
-                CrearParametro(DbType.Int32, idMantenimiento));
+                DateTime.Now,
+                costo,
+                idMantenimiento);
+        }
+
+        // El admin acepta el mantenimiento y pasa de Pendiente a En_progreso
+        public async Task<bool> AceptarMantenimientoAsync(int idMantenimiento, int idUsuarioActor)
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var idArticulo = await ObtenerIdArticuloPorMantenimientoAsync(idMantenimiento);
+                if (!idArticulo.HasValue)
+                    throw new InvalidOperationException("No se pudo identificar el artículo asociado al reporte.");
+
+                var articulosList = await _context.Articulos
+                    .Where(a => a.IdArticulo == idArticulo.Value)
+                    .Select(a => new { a.IdArticulo, a.Estado })
+                    .ToListAsync();
+                var articulo = articulosList.FirstOrDefault();
+
+                if (articulo == null || articulo.Estado != EstadoArticulo.Disponible)
+                    throw new InvalidOperationException("El artículo todavía sigue prestado. Debe devolverse antes de aceptar el reporte.");
+
+                const string sql = @"
+                    UPDATE MANTENIMIENTOS SET 
+                        ESTADO_MANTENIMIENTO = 'En_progreso'
+                    WHERE ID_MANTENIMIENTO = {0}
+                      AND ESTADO_MANTENIMIENTO = 'Pendiente'";
+
+                var filasActualizadas = await _context.Database.ExecuteSqlRawAsync(
+                    sql,
+                    idMantenimiento);
+
+                if (filasActualizadas == 0)
+                    throw new InvalidOperationException("El reporte no está en estado Pendiente o ya fue procesado.");
+
+                await _context.Database.ExecuteSqlRawAsync(
+                    "UPDATE ARTICULOS SET ESTADO = 'Mantenimiento' WHERE ID_ARTICULO = {0}",
+                    idArticulo.Value);
+
+                await _auditoriaRepository.RegistrarAccionAsync(new AuditoriaCreateDTO
+                {
+                    IdUsuario = idUsuarioActor,
+                    TablaAfectada = "MANTENIMIENTOS",
+                    IdRegistroAfectado = idMantenimiento,
+                    Accion = "UPDATE",
+                    DetallesCambio = $"Mantenimiento aceptado. ID={idMantenimiento}. Estado: Pendiente → En_progreso"
+                });
+
+                await transaction.CommitAsync();
+                return true;
+            }
+            catch (Exception)
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }
+
+        // El admin rechaza el mantenimiento y vuelve a poner disponible el artículo
+        public async Task<bool> RechazarMantenimientoAsync(int idMantenimiento, int idUsuarioActor)
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                // 1. Obtener el ID del artículo
+                var idArticulo = await ObtenerIdArticuloPorMantenimientoAsync(idMantenimiento);
+                if (!idArticulo.HasValue)
+                    return false;
+
+                // 2. Actualizar estado del mantenimiento a Rechazado
+                const string sqlMant = @"
+                    UPDATE MANTENIMIENTOS SET 
+                        FECHA_FIN = {0},
+                        ESTADO_MANTENIMIENTO = 'Rechazado'
+                    WHERE ID_MANTENIMIENTO = {1}
+                      AND ESTADO_MANTENIMIENTO = 'Pendiente'";
+
+                var filasActualizadas = await _context.Database.ExecuteSqlRawAsync(
+                    sqlMant,
+                    DateTime.Now,
+                    idMantenimiento);
+
+                if (filasActualizadas == 0)
+                    return false;
+
+                await _auditoriaRepository.RegistrarAccionAsync(new AuditoriaCreateDTO
+                {
+                    IdUsuario = idUsuarioActor,
+                    TablaAfectada = "MANTENIMIENTOS",
+                    IdRegistroAfectado = idMantenimiento,
+                    Accion = "UPDATE",
+                    DetallesCambio = $"Reporte de mantenimiento rechazado. ID={idMantenimiento}."
+                });
+
+                await transaction.CommitAsync();
+                return true;
+            }
+            catch (Exception)
+            {
+                await transaction.RollbackAsync();
+                return false;
+            }
         }
 
         private DbParameter CrearParametro(DbType dbType, object? value)

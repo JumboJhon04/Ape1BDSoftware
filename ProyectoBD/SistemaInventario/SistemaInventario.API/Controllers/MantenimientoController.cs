@@ -27,7 +27,7 @@ namespace SistemaInventario.API.Controllers
 
             dto.IdUsuarioActor = idUsuarioActor;
             var result = await _repository.IniciarMantenimientoAsync(dto);
-            return result ? Ok(new { m = "Mantenimiento iniciado y artículo bloqueado." }) : BadRequest();
+            return result ? Ok(new { m = "Reporte de mantenimiento registrado y pendiente de aceptación." }) : BadRequest();
         }
 
         // PUT: api/Mantenimientos/finalizar
@@ -41,6 +41,37 @@ namespace SistemaInventario.API.Controllers
             dto.IdUsuarioActor = idUsuarioActor;
             var result = await _repository.FinalizarMantenimientoAsync(dto);
             return result ? Ok(new { m = "Mantenimiento cerrado y artículo disponible." }) : BadRequest();
+        }
+
+        // PUT: api/Mantenimientos/aceptar/{id}
+        [HttpPut("aceptar/{id}")]
+        [Authorize(Roles = "Administrador,Docente")]
+        public async Task<IActionResult> Aceptar(int id)
+        {
+            try
+            {
+                if (!User.TryGetUserId(out var idUsuarioActor))
+                    return Unauthorized(new { message = "Token inválido: no se pudo obtener el usuario actor." });
+
+                var result = await _repository.AceptarMantenimientoAsync(id, idUsuarioActor);
+                return result ? Ok(new { m = "Mantenimiento aceptado y pasado a En_progreso." }) : BadRequest(new { error = "No se pudo aceptar el mantenimiento." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
+        // PUT: api/Mantenimientos/rechazar/{id}
+        [HttpPut("rechazar/{id}")]
+        [Authorize(Roles = "Administrador,Docente")]
+        public async Task<IActionResult> Rechazar(int id)
+        {
+            if (!User.TryGetUserId(out var idUsuarioActor))
+                return Unauthorized(new { message = "Token inválido: no se pudo obtener el usuario actor." });
+
+            var result = await _repository.RechazarMantenimientoAsync(id, idUsuarioActor);
+            return result ? Ok(new { m = "Reporte de mantenimiento rechazado." }) : BadRequest(new { error = "No se pudo rechazar el reporte." });
         }
 
         // GET: api/Mantenimientos/activos

@@ -4,6 +4,7 @@
     {
         Pendiente,
         En_progreso,
-        Finalizado
+        Finalizado,
+        Rechazado
     }
 }

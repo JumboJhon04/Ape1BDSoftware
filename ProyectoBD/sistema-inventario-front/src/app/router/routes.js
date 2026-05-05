@@ -2,6 +2,7 @@ import DashboardPage from '@/features/dashboard/pages/DashboardPage'
 import InventoryPage from '@/features/inventory/pages/InventoryPage'
 import InventoryDetailPage from '@/features/inventory/pages/InventoryDetailPage'
 import LoansPage from '@/features/loans/pages/LoansPage'
+import MyLoansPage from '@/features/loans/pages/MyLoansPage'
 import MaintenancePage from '@/features/maintenance/pages/MaintenancePage'
 import ReportsPage from '@/features/reports/pages/ReportsPage'
 import UsersPage from '@/features/users/pages/UsersPage'
@@ -51,7 +52,15 @@ export const appRoutes = [
     component: LoansPage,
     icon: ClipboardCheck,
     description: 'Solicitudes, aprobaciones y devoluciones de equipos.',
-    roles: ['administrador', 'docente', 'estudiante'],
+    roles: ['administrador'],
+  },
+  {
+    path: '/mis-prestamos',
+    title: 'Mis préstamos',
+    component: MyLoansPage,
+    icon: ClipboardCheck,
+    description: 'Consulta tus préstamos y reporta incidencias de tus equipos.',
+    roles: ['docente', 'estudiante'],
   },
   {
     path: '/mantenimiento',

@@ -1,15 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Eye, Check, X, Wrench } from 'lucide-react'
 import ModulePageShell from '@/shared/components/ModulePageShell'
-import { getNotifications } from '@/features/notifications/services/notifications.service'
 import { getInventoryCatalog } from '@/features/inventory/services/inventory.service'
 import useAuth from '@/core/auth/useAuth'
-import { getAllMaintenances, startMaintenance, finishMaintenance } from '../services/maintenance.service'
+import { acceptMaintenance, finishMaintenance, getAllMaintenances, rejectMaintenance, startMaintenance } from '../services/maintenance.service'
 
 function MaintenancePage() {
   const [reports, setReports] = useState([])
   const [maintenances, setMaintenances] = useState([])
   const [loading, setLoading] = useState(true)
+  const [reportActionError, setReportActionError] = useState('')
   const { role: currentRole } = useAuth()
 
   // create modal states
@@ -19,6 +19,7 @@ function MaintenancePage() {
   const [articles, setArticles] = useState([])
 
   // view modal
+  const [errorModal, setErrorModal] = useState({ show: false, message: '' })
   const [selectedItem, setSelectedItem] = useState(null)
   const [showViewModal, setShowViewModal] = useState(false)
   const [showFinishModal, setShowFinishModal] = useState(false)
@@ -36,10 +37,18 @@ function MaintenancePage() {
 
   const loadData = async () => {
     setLoading(true)
+    setReportActionError('')
     try {
-      const [n, m, a] = await Promise.all([getNotifications(), getAllMaintenances(), getInventoryCatalog()])
-      setReports(n)
-      setMaintenances(m)
+      const [m, a] = await Promise.all([getAllMaintenances(), getInventoryCatalog()])
+      const allMaintenances = Array.isArray(m) ? m : []
+      setReports(allMaintenances.filter((item) => {
+        const estado = String(item.estado ?? item.estadoMantenimiento ?? '').toLowerCase()
+        return estado === 'pendiente' || estado === 'rechazado'
+      }))
+      setMaintenances(allMaintenances.filter((item) => {
+        const estado = String(item.estado ?? item.estadoMantenimiento ?? '').toLowerCase()
+        return estado === 'en_progreso' || estado === 'finalizado'
+      }))
       setArticles((Array.isArray(a) ? a : []).filter((item) => String(item.estado ?? '').toLowerCase() === 'disponible'))
     } catch (err) {
       console.error(err)
@@ -58,13 +67,47 @@ function MaintenancePage() {
     // kept minimal per request
   }
 
-  const handleStartFromReport = async (report) => {
-    // open a quick confirm modal would be better; keep simple: start maintenance with defaults
+  const [successModal, setSuccessModal] = useState({ show: false, message: '', title: '' })
+
+  const handleAcceptFromReport = async (report) => {
     try {
-      await startMaintenance({ IdArticulo: report.idArticulo ?? 0, Tipo: 'Correctivo', ProveedorTecnico: null })
+      await acceptMaintenance(report.idMantenimiento ?? report.id)
       await loadData()
+      setSuccessModal({
+        show: true,
+        title: 'Reporte Aceptado',
+        message: 'El reporte de fallo ha sido aprobado. El equipo pasa a estar en estado "Mantenimiento" y los técnicos ya pueden empezar a trabajar en él.'
+      })
     } catch (err) {
+      const rawMessage = err.response?.data?.error ?? ''
+      const isDbError = rawMessage.toLowerCase().includes('ora-') || rawMessage.toLowerCase().includes('sql')
+
+      setErrorModal({
+        show: true,
+        message: isDbError
+          ? 'No se pudo aceptar el reporte. Es posible que el artículo aún no haya sido devuelto o ya esté en mantenimiento.'
+          : rawMessage || 'Ocurrió un error inesperado. Intenta de nuevo.'
+      })
       console.error(err)
+    }
+  }
+
+  const handleRejectFromReport = async (report) => {
+    try {
+      setReportActionError('')
+      await rejectMaintenance(report.idMantenimiento ?? report.id)
+      await loadData()
+      setSuccessModal({
+        show: true,
+        variant: 'neutral',
+        title: 'Reporte Rechazado',
+        message: 'El reporte ha sido rechazado correctamente. El artículo vuelve a estar disponible en el catálogo general.'
+      })
+    } catch (err) {
+      setErrorModal({
+        show: true,
+        message: err.response?.data?.error ?? 'No se pudo rechazar el reporte.'
+      })
     }
   }
 
@@ -124,143 +167,158 @@ function MaintenancePage() {
       setFinishSubmitting(false)
     }
   }
+  const allMaintenances = useMemo(() => {
+    return maintenances.filter((m) => {
+      const estado = String(m.estado ?? m.estadoMantenimiento ?? '').toLowerCase()
+      const tipo = String(m.tipo ?? m.tipoMantenimiento ?? '').toLowerCase()
+      const equipo = String(m.articulo ?? m.articuloNombre ?? '').toLowerCase()
 
-  const allMaintenances = maintenances
+      const matchEstado = filters.estado === 'Todos' || estado === filters.estado.toLowerCase()
+      const matchTipo = filters.tipo === 'Todos' || tipo === filters.tipo.toLowerCase()
+      const matchEquipo = !filters.equipo || equipo.includes(filters.equipo.toLowerCase())
 
+      return matchEstado && matchTipo && matchEquipo
+    })
+  }, [maintenances, filters])
   return (
     <>
       <ModulePageShell title="Módulo de Mantenimientos" description="Gestiona reportes, programación y cierre de mantenimientos.">
-      <section className="inventory-filters-card">
-        <div className="inventory-filter-grid">
-          <label>
-            <span>Estado</span>
-            <select name="estado" value={filters.estado} onChange={handleFilterChange}>
-              <option>Todos</option>
-              <option>En Progreso</option>
-              <option>Programado</option>
-              <option>Completado</option>
-            </select>
-          </label>
+        <section className="inventory-filters-card">
+          <div className="inventory-filter-grid">
+            <label>
+              <span>Estado</span>
+              <select name="estado" value={filters.estado} onChange={handleFilterChange}>
+                <option>Todos</option>
+                <option value="En_Progreso">En Progreso</option>
+                <option>Finalizado</option>
+              </select>
+            </label>
 
-          <label>
-            <span>Tipo de Mantenimiento</span>
-            <select name="tipo" value={filters.tipo} onChange={handleFilterChange}>
-              <option>Todos</option>
-              <option>Preventivo</option>
-              <option>Correctivo</option>
-            </select>
-          </label>
+            <label>
+              <span>Tipo de Mantenimiento</span>
+              <select name="tipo" value={filters.tipo} onChange={handleFilterChange}>
+                <option>Todos</option>
+                <option>Preventivo</option>
+                <option>Correctivo</option>
+              </select>
+            </label>
 
-          <label>
-            <span>Equipo</span>
-            <div style={{ position: 'relative' }}>
-              <input type="text" name="equipo" value={filters.equipo} onChange={handleFilterChange} placeholder="Buscar equipo..." />
-            </div>
-          </label>
+            <label>
+              <span>Equipo</span>
+              <div style={{ position: 'relative' }}>
+                <input type="text" name="equipo" value={filters.equipo} onChange={handleFilterChange} placeholder="Buscar equipo..." />
+              </div>
+            </label>
 
-          <div className="inventory-filter-actions">
-            <button className="btn btn-primary" onClick={() => { applyFilters() }}>Aplicar Filtros</button>
+
+          </div>
+        </section>
+
+        <div className="inventory-table-toolbar" style={{ marginTop: 8 }}>
+          <div>
+            <h3>Tabla de Reportes(Equipos)</h3>
+            <p>Reportes recientes enviados por usuarios</p>
           </div>
         </div>
-      </section>
 
-      <div className="inventory-table-toolbar" style={{ marginTop: 8 }}>
-        <div>
-          <h3>Tabla de Reportes(Equipos)</h3>
-          <p>Reportes recientes enviados por usuarios</p>
-        </div>
-      </div>
+        <div className="inventory-table-card" style={{ marginBottom: 18 }}>
+          <div className="inventory-table-head inventory-grid" style={{ gridTemplateColumns: '140px 1.2fr 160px 1fr 1fr 160px' }}>
+            <span>ID</span>
+            <span>Equipo</span>
+            <span>Tipo</span>
+            <span>Fecha</span>
+            <span>Descripción</span>
+            <span>Acciones</span>
+          </div>
 
-      <div className="inventory-table-card" style={{ marginBottom: 18 }}>
-        <div className="inventory-table-head inventory-grid" style={{ gridTemplateColumns: '140px 1.2fr 160px 1fr 1fr 160px' }}>
-          <span>ID</span>
-          <span>Equipo</span>
-          <span>Ubicación</span>
-          <span>Fecha Reporte</span>
-          <span>Descripción</span>
-          <span>Acciones</span>
-        </div>
-
-        <div className="inventory-table-body">
-          {loading ? (
-            <p className="users-empty">Cargando reportes...</p>
-          ) : reports.length === 0 ? (
-            <p className="users-empty">No hay reportes.</p>
-          ) : (
-            reports.map((r) => (
-              <div key={r.idNotificacion ?? r.id} className="inventory-table-row inventory-grid" style={{ gridTemplateColumns: '140px 1.2fr 160px 1fr 1fr 160px' }}>
-                <span style={{ fontWeight: 700 }}>{r.codigo ?? `REP${String(r.idNotificacion ?? r.id ?? 0).padStart(3, '0')}`}</span>
-                <span>{r.articuloNombre ?? r.titulo ?? r.mensaje ?? '-'}</span>
-                <span>{r.ubicacion ?? r.espacio ?? '-'}</span>
-                <span>{new Date(r.fecha ?? r.fechaCreacion ?? Date.now()).toLocaleDateString()}</span>
-                <span style={{ fontSize: '0.9rem' }}>{r.descripcion ?? r.mensaje ?? '-'}</span>
-                <span className="inventory-actions">
-                  <button className="inventory-icon-button inventory-icon-button-view" title="Ver detalles" aria-label="Ver detalles" onClick={() => openView(r)}>
-                    <Eye size={16} />
-                  </button>
-                  <button className="inventory-icon-button" style={{ background: '#22c55e' }} title="Iniciar mantenimiento" aria-label="Iniciar mantenimiento" onClick={() => handleStartFromReport(r)}>
-                    <Wrench size={16} />
-                  </button>
-                  <button className="inventory-icon-button inventory-icon-button-delete" title="Ignorar reporte" aria-label="Ignorar reporte" onClick={() => setReports(prev => prev.filter(x => x !== r))}>
-                    <X size={16} />
-                  </button>
-                </span>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      <div className="inventory-table-toolbar">
-        <div>
-          <h3>Tabla de Mantenimientos</h3>
-          <p>Programados, en progreso y finalizados</p>
-        </div>
-        {currentRole === 'administrador' ? (
-          <button className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={openCreate}>
-            <Wrench size={16} /> Programar Nuevo Mantenimiento
-          </button>
-        ) : null}
-      </div>
-
-      <div className="inventory-table-card">
-        <div className="inventory-table-head inventory-grid" style={{ gridTemplateColumns: '140px 1.4fr 1fr 1fr 160px' }}>
-          <span>ID</span>
-          <span>Equipo</span>
-          <span>Tipo</span>
-          <span>Fecha Inicio</span>
-          <span>Acciones</span>
-        </div>
-
-        <div className="inventory-table-body">
-          {loading ? (
-            <p className="users-empty">Cargando mantenimientos...</p>
-          ) : allMaintenances.length === 0 ? (
-            <p className="users-empty">No hay mantenimientos registrados.</p>
-          ) : (
-            allMaintenances.map((m) => (
-              <div key={m.idMantenimiento ?? m.id} className="inventory-table-row inventory-grid" style={{ gridTemplateColumns: '140px 1.4fr 1fr 1fr 160px' }}>
-                <span style={{ fontWeight: 700 }}>{m.codigo ?? `MNT${String(m.idMantenimiento ?? m.id ?? 0).padStart(3, '0')}`}</span>
-                <span>{m.articulo ?? m.articuloNombre ?? '-'}</span>
-                <span>{m.tipo ?? m.tipoMantenimiento ?? '-'}</span>
-                <span>{m.fechaInicio ? new Date(m.fechaInicio).toLocaleDateString() : (m.fechaFin ? new Date(m.fechaFin).toLocaleDateString() : '-')}</span>
-                <span className="inventory-actions">
-                  <button className="inventory-icon-button inventory-icon-button-view" title="Ver detalles" aria-label="Ver detalles" onClick={() => openView(m)}>
-                    <Eye size={16} />
-                  </button>
-                  {String(m.estado ?? m.estadoMantenimiento ?? '').toLowerCase() === 'finalizado' ? (
-                    <span className="dashboard-status-chip dashboard-status-chip-success" style={{ fontSize: '0.75rem' }}>Finalizado</span>
-                  ) : (
-                    <button className="inventory-icon-button" style={{ background: '#f97316' }} title="Finalizar mantenimiento" aria-label="Finalizar mantenimiento" onClick={() => handleFinish(m)}>
-                      <Check size={16} />
+          <div className="inventory-table-body">
+            {loading ? (
+              <p className="users-empty">Cargando reportes...</p>
+            ) : reports.length === 0 ? (
+              <p className="users-empty">No hay reportes.</p>
+            ) : (
+              reports.map((r) => (
+                <div key={r.idMantenimiento ?? r.id} className="inventory-table-row inventory-grid" style={{ gridTemplateColumns: '140px 1.2fr 160px 1fr 1fr 160px' }}>
+                  <span style={{ fontWeight: 700 }}>{r.codigo ?? `RPT${String(r.idMantenimiento ?? r.id ?? 0).padStart(3, '0')}`}</span>
+                  <span>{r.articulo ?? r.articuloNombre ?? r.titulo ?? '-'}</span>
+                  <span>{r.tipo ?? r.tipoMantenimiento ?? '-'}</span>
+                  <span>{new Date(r.fechaInicio ?? r.fecha ?? r.fechaCreacion ?? Date.now()).toLocaleDateString()}</span>
+                  <span style={{ fontSize: '0.9rem' }}>{r.descripcion ?? r.mensaje ?? '-'}</span>
+                  <span className="inventory-actions">
+                    <button className="inventory-icon-button inventory-icon-button-view" title="Ver detalles" aria-label="Ver detalles" onClick={() => openView(r)}>
+                      <Eye size={16} />
                     </button>
-                  )}
-                </span>
-              </div>
-            ))
-          )}
+                    {String(r.estado ?? r.estadoMantenimiento ?? '').toLowerCase() === 'pendiente' ? (
+                      <>
+                        <button className="inventory-icon-button" style={{ background: '#22c55e' }} title="Aceptar reporte" aria-label="Aceptar reporte" onClick={() => handleAcceptFromReport(r)}>
+                          <Check size={16} />
+                        </button>
+                        <button className="inventory-icon-button inventory-icon-button-delete" title="Rechazar reporte" aria-label="Rechazar reporte" onClick={() => handleRejectFromReport(r)}>
+                          <X size={16} />
+                        </button>
+                      </>
+                    ) : (
+                      <span className="dashboard-status-chip dashboard-status-chip-neutral" style={{ fontSize: '0.75rem' }}>{String(r.estado ?? r.estadoMantenimiento ?? 'Rechazado')}</span>
+                    )}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
         </div>
-      </div>
+
+        <div className="inventory-table-toolbar">
+          <div>
+            <h3>Tabla de Mantenimientos</h3>
+            <p>Programados, en progreso y finalizados</p>
+          </div>
+          {currentRole === 'administrador' ? (
+            <button className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={openCreate}>
+              <Wrench size={16} /> Programar Nuevo Mantenimiento
+            </button>
+          ) : null}
+        </div>
+
+        <div className="inventory-table-card">
+          <div className="inventory-table-head inventory-grid" style={{ gridTemplateColumns: '140px 1.4fr 1fr 1fr 160px' }}>
+            <span>ID</span>
+            <span>Equipo</span>
+            <span>Tipo</span>
+            <span>Fecha Inicio</span>
+            <span>Acciones</span>
+          </div>
+
+          <div className="inventory-table-body">
+            {loading ? (
+              <p className="users-empty">Cargando mantenimientos...</p>
+            ) : allMaintenances.length === 0 ? (
+              <p className="users-empty">No hay mantenimientos registrados.</p>
+            ) : (
+              allMaintenances.map((m) => (
+                <div key={m.idMantenimiento ?? m.id} className="inventory-table-row inventory-grid" style={{ gridTemplateColumns: '140px 1.4fr 1fr 1fr 160px' }}>
+                  <span style={{ fontWeight: 700 }}>{m.codigo ?? `MNT${String(m.idMantenimiento ?? m.id ?? 0).padStart(3, '0')}`}</span>
+                  <span>{m.articulo ?? m.articuloNombre ?? '-'}</span>
+                  <span>{m.tipo ?? m.tipoMantenimiento ?? '-'}</span>
+                  <span>{m.fechaInicio ? new Date(m.fechaInicio).toLocaleDateString() : (m.fechaFin ? new Date(m.fechaFin).toLocaleDateString() : '-')}</span>
+                  <span className="inventory-actions">
+                    <button className="inventory-icon-button inventory-icon-button-view" title="Ver detalles" aria-label="Ver detalles" onClick={() => openView(m)}>
+                      <Eye size={16} />
+                    </button>
+                    {String(m.estado ?? m.estadoMantenimiento ?? '').toLowerCase() === 'en_progreso' ? (
+                      <button className="inventory-icon-button" style={{ background: '#f97316' }} title="Finalizar mantenimiento" aria-label="Finalizar mantenimiento" onClick={() => handleFinish(m)}>
+                        <Check size={16} />
+                      </button>
+                    ) : (
+                      <span className={`dashboard-status-chip ${String(m.estado ?? m.estadoMantenimiento ?? '').toLowerCase() === 'finalizado' ? 'dashboard-status-chip-success' : 'dashboard-status-chip-neutral'}`} style={{ fontSize: '0.75rem' }}>
+                        {m.estado ?? m.estadoMantenimiento ?? 'Desconocido'}
+                      </span>
+                    )}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
       </ModulePageShell>
       <CreateMaintenanceModal show={showCreateModal} onClose={() => setShowCreateModal(false)} onSubmit={handleCreateSubmit} submitting={createSubmitting} error={createError} articles={articles} />
       <ViewModal show={showViewModal} item={selectedItem} onClose={() => setShowViewModal(false)} />
@@ -273,6 +331,19 @@ function MaintenancePage() {
         setForm={setFinishForm}
         onClose={() => !finishSubmitting && setShowFinishModal(false)}
         onSubmit={confirmFinish}
+
+      />
+      <ErrorModal
+        show={errorModal.show}
+        message={errorModal.message}
+        onClose={() => setErrorModal({ show: false, message: '' })}
+      />
+      <SuccessModal
+        show={successModal.show}
+        variant={successModal.variant}
+        title={successModal.title}
+        message={successModal.message}
+        onClose={() => setSuccessModal({ show: false, message: '', title: '' })}
       />
     </>
   )
@@ -332,16 +403,16 @@ function CreateMaintenanceModal({ show, onClose, onSubmit, submitting, error, ar
               {error}
             </div>
           ) : null}
-          
+
           <div style={{ display: 'grid', gap: 18 }}>
             {/* Artículo */}
             <div>
               <label style={{ display: 'block', marginBottom: 8 }}>
                 <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#1e293b', display: 'block' }}>Artículo *</span>
               </label>
-              <select 
-                name="idArticulo" 
-                value={form.idArticulo} 
+              <select
+                name="idArticulo"
+                value={form.idArticulo}
                 onChange={handleChange}
                 style={{
                   width: '100%',
@@ -367,9 +438,9 @@ function CreateMaintenanceModal({ show, onClose, onSubmit, submitting, error, ar
               <label style={{ display: 'block', marginBottom: 8 }}>
                 <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#1e293b', display: 'block' }}>Tipo de Mantenimiento *</span>
               </label>
-              <select 
-                name="tipo" 
-                value={form.tipo} 
+              <select
+                name="tipo"
+                value={form.tipo}
                 onChange={handleChange}
                 style={{
                   width: '100%',
@@ -416,10 +487,10 @@ function CreateMaintenanceModal({ show, onClose, onSubmit, submitting, error, ar
                   <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 400, marginLeft: 4 }}>Opcional</span>
                 </span>
               </label>
-              <input 
-                name="proveedor" 
-                value={form.proveedor} 
-                onChange={handleChange} 
+              <input
+                name="proveedor"
+                value={form.proveedor}
+                onChange={handleChange}
                 placeholder="Ej: Tech Solutions S.A."
                 style={{
                   width: '100%',
@@ -442,10 +513,10 @@ function CreateMaintenanceModal({ show, onClose, onSubmit, submitting, error, ar
                   <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 400, marginLeft: 4 }}>Opcional</span>
                 </span>
               </label>
-              <textarea 
-                name="descripcion" 
-                value={form.descripcion} 
-                onChange={handleChange} 
+              <textarea
+                name="descripcion"
+                value={form.descripcion}
+                onChange={handleChange}
                 rows={3}
                 placeholder="Describe el mantenimiento a realizar..."
                 style={{
@@ -464,19 +535,19 @@ function CreateMaintenanceModal({ show, onClose, onSubmit, submitting, error, ar
           </div>
         </div>
         <footer className="users-form-footer" style={{ padding: '16px 28px', display: 'flex', gap: 10, justifyContent: 'flex-end', background: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
-          <button 
-            className="btn btn-ghost" 
-            type="button" 
-            onClick={() => onClose()} 
+          <button
+            className="btn btn-ghost"
+            type="button"
+            onClick={() => onClose()}
             disabled={submitting}
             style={{ padding: '10px 16px', fontSize: '0.9rem', fontWeight: 500 }}
           >
             Cancelar
           </button>
-          <button 
-            className="btn btn-primary" 
-            type="button" 
-            onClick={handleSubmit} 
+          <button
+            className="btn btn-primary"
+            type="button"
+            onClick={handleSubmit}
             disabled={submitting || !form.idArticulo}
             style={{ padding: '10px 20px', fontSize: '0.9rem', fontWeight: 500 }}
           >
@@ -491,7 +562,8 @@ function CreateMaintenanceModal({ show, onClose, onSubmit, submitting, error, ar
 function ViewModal({ show, item, onClose }) {
   if (!show || !item) return null
 
-  const isReport = Boolean(item.idNotificacion || item.mensaje)
+  const estadoNormalizado = String(item.estado ?? item.estadoMantenimiento ?? '').toLowerCase()
+  const isReport = estadoNormalizado === 'pendiente' || estadoNormalizado === 'rechazado'
   const estado = item.estado ?? item.estadoMantenimiento ?? '-'
   return (
     <div className="modal-backdrop" style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15, 23, 42, 0.68)' }} role="presentation" onClick={() => onClose()}>
@@ -515,21 +587,27 @@ function ViewModal({ show, item, onClose }) {
             <div style={{ display: 'grid', gap: 14 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div style={{ padding: 14, background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
-                  <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>Solicitante</p>
-                  <strong style={{ color: '#1e293b' }}>{item.usuario ?? item.nombreUsuario ?? '-'}</strong>
+                  <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>Equipo</p>
+                  <strong style={{ color: '#1e293b' }}>{item.articulo ?? item.articuloNombre ?? '-'}</strong>
                 </div>
                 <div style={{ padding: 14, background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
-                  <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>Equipo</p>
-                  <strong style={{ color: '#1e293b' }}>{item.articuloNombre ?? item.titulo ?? '-'}</strong>
+                  <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>Tipo</p>
+                  <strong style={{ color: '#1e293b' }}>{item.tipo ?? item.tipoMantenimiento ?? '-'}</strong>
                 </div>
               </div>
-              <div style={{ padding: 14, background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
-                <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>Fecha</p>
-                <strong style={{ color: '#1e293b' }}>{new Date(item.fecha ?? item.fechaCreacion ?? Date.now()).toLocaleString()}</strong>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ padding: 14, background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
+                  <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>Fecha</p>
+                  <strong style={{ color: '#1e293b' }}>{item.fechaInicio ? new Date(item.fechaInicio).toLocaleString() : '-'}</strong>
+                </div>
+                <div style={{ padding: 14, background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
+                  <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>Estado</p>
+                  <span className="dashboard-status-chip" style={{ marginTop: 6, display: 'inline-flex' }}>{estado}</span>
+                </div>
               </div>
               <div style={{ padding: 14, background: '#fff7ed', borderRadius: 12, border: '1px solid #fed7aa' }}>
                 <p style={{ margin: 0, fontSize: 12, color: '#9a3412' }}>Descripción</p>
-                <p style={{ margin: '6px 0 0', color: '#7c2d12', lineHeight: 1.5 }}>{item.descripcion ?? item.mensaje}</p>
+                <p style={{ margin: '6px 0 0', color: '#7c2d12', lineHeight: 1.5 }}>{item.descripcion ?? item.mensaje ?? '-'}</p>
               </div>
             </div>
           ) : (
@@ -671,19 +749,19 @@ function FinishMaintenanceModal({ show, item, submitting, error, form, setForm, 
         </div>
 
         <footer className="users-form-footer" style={{ padding: '16px 24px', display: 'flex', gap: 10, justifyContent: 'flex-end', background: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
-          <button 
-            className="btn btn-ghost" 
-            type="button" 
-            onClick={() => onClose()} 
+          <button
+            className="btn btn-ghost"
+            type="button"
+            onClick={() => onClose()}
             disabled={submitting}
             style={{ padding: '10px 16px', fontSize: '0.9rem', fontWeight: 500 }}
           >
             Cancelar
           </button>
-          <button 
-            className="btn btn-primary" 
-            type="button" 
-            onClick={onSubmit} 
+          <button
+            className="btn btn-primary"
+            type="button"
+            onClick={onSubmit}
             disabled={submitting || !form.costo || form.costo <= 0}
             style={{ padding: '10px 20px', fontSize: '0.9rem', fontWeight: 500 }}
           >
@@ -694,6 +772,142 @@ function FinishMaintenanceModal({ show, item, submitting, error, form, setForm, 
     </div>
   )
 }
+function ErrorModal({ show, message, onClose }) {
+  if (!show) return null
 
-// render modals in the page via portal-like inclusion
-/* eslint-disable react/jsx-no-bind */
+  return (
+    <div
+      className="modal-backdrop"
+      style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15, 23, 42, 0.68)', display: 'grid', placeItems: 'center' }}
+      role="presentation"
+      onClick={onClose}
+    >
+      <section
+        className="modal-card"
+        style={{ maxWidth: 480, width: '90%', padding: 0, overflow: 'hidden', borderRadius: 16 }}
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="modal-header" style={{ background: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: '#dc2626', color: '#fff', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+              <X size={20} />
+            </div>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#991b1b' }}>Acción no permitida</h2>
+              <p style={{ margin: '2px 0 0', color: '#b91c1c', fontSize: '0.82rem' }}>No se pudo completar la operación.</p>
+            </div>
+          </div>
+          <button type="button" className="icon-button" onClick={onClose}>
+            <X size={18} />
+          </button>
+        </header>
+
+        <div style={{ padding: 24, background: '#fff' }}>
+          <div style={{
+            padding: 16,
+            background: '#fff1f2',
+            border: '1px solid #fecdd3',
+            borderRadius: 12,
+            display: 'flex',
+            gap: 12,
+            alignItems: 'flex-start'
+          }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: '#fee2e2', display: 'grid', placeItems: 'center', flexShrink: 0, marginTop: 2 }}>
+              <X size={16} color="#dc2626" />
+            </div>
+            <div>
+              <p style={{ margin: 0, fontWeight: 600, color: '#7f1d1d', fontSize: '0.9rem', marginBottom: 4 }}>Razón del error</p>
+              <p style={{ margin: 0, color: '#991b1b', fontSize: '0.95rem', lineHeight: 1.6 }}>{message}</p>
+            </div>
+          </div>
+        </div>
+
+        <footer style={{ padding: '14px 24px', display: 'flex', justifyContent: 'flex-end', background: '#fef2f2', borderTop: '1px solid #fecaca' }}>
+          <button className="btn btn-primary" style={{ background: '#dc2626', borderColor: '#dc2626' }} type="button" onClick={onClose}>
+            Entendido
+          </button>
+        </footer>
+      </section>
+    </div>
+  )
+}
+
+function SuccessModal({ show, message, title = "Operación exitosa", variant = "success", onClose }) {
+  if (!show) return null
+
+  const isNeutral = variant === 'neutral'
+
+  const theme = isNeutral ? {
+    headerBg: '#f8fafc', headerBorder: '#e2e8f0',
+    iconBg: '#64748b',
+    title: '#334155', subtitle: '#475569',
+    boxBg: '#f1f5f9', boxBorder: '#cbd5e1', boxIconBg: '#e2e8f0', boxIconColor: '#475569', boxTitle: '#334155', boxText: '#475569',
+    btnBg: '#64748b'
+  } : {
+    headerBg: '#f0fdf4', headerBorder: '#bbf7d0',
+    iconBg: '#16a34a',
+    title: '#166534', subtitle: '#15803d',
+    boxBg: '#f0fdfa', boxBorder: '#ccfbf1', boxIconBg: '#ccfbf1', boxIconColor: '#0d9488', boxTitle: '#115e59', boxText: '#0f766e',
+    btnBg: '#16a34a'
+  }
+
+  return (
+    <div
+      className="modal-backdrop"
+      style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15, 23, 42, 0.68)', display: 'grid', placeItems: 'center' }}
+      role="presentation"
+      onClick={onClose}
+    >
+      <section
+        className="modal-card"
+        style={{ maxWidth: 480, width: '90%', padding: 0, overflow: 'hidden', borderRadius: 16 }}
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="modal-header" style={{ background: theme.headerBg, borderBottom: `1px solid ${theme.headerBorder}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: theme.iconBg, color: '#fff', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+              <Check size={20} />
+            </div>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: theme.title }}>{title}</h2>
+              <p style={{ margin: '2px 0 0', color: theme.subtitle, fontSize: '0.82rem' }}>La acción se completó correctamente.</p>
+            </div>
+          </div>
+          <button type="button" className="icon-button" onClick={onClose}>
+            <X size={18} />
+          </button>
+        </header>
+
+        <div style={{ padding: 24, background: '#fff' }}>
+          <div style={{
+            padding: 16,
+            background: theme.boxBg,
+            border: `1px solid ${theme.boxBorder}`,
+            borderRadius: 12,
+            display: 'flex',
+            gap: 12,
+            alignItems: 'flex-start'
+          }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: theme.boxIconBg, display: 'grid', placeItems: 'center', flexShrink: 0, marginTop: 2 }}>
+              <Check size={16} color={theme.boxIconColor} />
+            </div>
+            <div>
+              <p style={{ margin: 0, fontWeight: 600, color: theme.boxTitle, fontSize: '0.9rem', marginBottom: 4 }}>Detalle</p>
+              <p style={{ margin: 0, color: theme.boxText, fontSize: '0.95rem', lineHeight: 1.6 }}>{message}</p>
+            </div>
+          </div>
+        </div>
+
+        <footer style={{ padding: '14px 24px', display: 'flex', justifyContent: 'flex-end', background: theme.headerBg, borderTop: `1px solid ${theme.headerBorder}` }}>
+          <button className="btn btn-primary" style={{ background: theme.btnBg, borderColor: theme.btnBg }} type="button" onClick={onClose}>
+            Aceptar
+          </button>
+        </footer>
+      </section>
+    </div>
+  )
+}

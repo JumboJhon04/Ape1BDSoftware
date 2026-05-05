@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { AlertTriangle, BellRing } from 'lucide-react'
 import ModulePageShell from '@/shared/components/ModulePageShell'
 import useAuth from '@/core/auth/useAuth'
 import { getDashboardData } from '@/features/dashboard/services/dashboard.service'
@@ -23,6 +24,52 @@ function isPrestamoRetrasado(item, hoy) {
   return fp < hoy
 }
 
+function getMaintenanceAlertsForDocente(mantenimientosTodos, articulos, userId) {
+  if (userId == null) return []
+
+  const articulosMiCargo = Array.isArray(articulos)
+    ? articulos.filter((a) => sameId(a.idResponsable ?? a.IdResponsable, userId))
+    : []
+  
+  const idsArticulosMiCargo = new Set(
+    articulosMiCargo.map((a) => a.idArticulo ?? a.IdArticulo).filter(id => id != null)
+  )
+
+  return (Array.isArray(mantenimientosTodos) ? mantenimientosTodos : [])
+    .filter((m) => {
+      const estado = normalizeText(pick(m, 'estado', 'Estado') ?? '')
+      if (estado === 'finalizado') return false
+
+      const idArticuloMantenimiento = pick(m, 'idArticulo', 'IdArticulo')
+      return idArticuloMantenimiento != null && idsArticulosMiCargo.has(idArticuloMantenimiento)
+    })
+    .sort(
+      (a, b) =>
+        new Date(pick(b, 'fechaInicio', 'FechaInicio') ?? 0).getTime() -
+        new Date(pick(a, 'fechaInicio', 'FechaInicio') ?? 0).getTime(),
+    )
+    .slice(0, 12)
+}
+
+function getMaintenanceAlertBody(alerta) {
+  const nombre = pick(alerta, 'articulo', 'Articulo') ?? 'un equipo'
+  const tipo = pick(alerta, 'tipo', 'Tipo') ?? ''
+  return `El equipo "${nombre}" entró en mantenimiento${tipo ? ` (${tipo})` : ''}.`
+}
+
+function getMaintenanceSnapshot(alertas) {
+  return alertas
+    .map((m) =>
+      [
+        pick(m, 'idMantenimiento', 'IdMantenimiento'),
+        pick(m, 'articulo', 'Articulo'),
+        pick(m, 'estado', 'Estado'),
+        pick(m, 'fechaInicio', 'FechaInicio'),
+      ].join('|'),
+    )
+    .join(';;')
+}
+
 function DocenteDashboardPage() {
   const { role, userId, userName } = useAuth()
   const navigate = useNavigate()
@@ -33,21 +80,55 @@ function DocenteDashboardPage() {
   const [prestamos, setPrestamos] = useState([])
   const [mantenimientosTodos, setMantenimientosTodos] = useState([])
   const [prestamosPage, setPrestamosPage] = useState(1)
+  const [notificationPermission, setNotificationPermission] = useState(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported'
+    return window.Notification.permission
+  })
+  const lastMaintenanceSnapshotRef = useRef('')
+  const hasLoadedOnceRef = useRef(false)
 
   useEffect(() => {
     let isMounted = true
 
-    const load = async () => {
-      setLoading(true)
+    const load = async (options = {}) => {
+      const { silent = false } = options
+      if (!silent) setLoading(true)
       setErrorMessage('')
       try {
         const response = await getDashboardData(role)
         if (!isMounted) return
+
+        const nextAlerts = getMaintenanceAlertsForDocente(
+          response.mantenimientosTodos ?? [],
+          response.articulos ?? [],
+          userId,
+        )
+        const nextSnapshot = getMaintenanceSnapshot(nextAlerts)
+        const previousSnapshot = lastMaintenanceSnapshotRef.current
+        const isFirstSuccessfulLoad = !hasLoadedOnceRef.current
+
+        if (
+          !isFirstSuccessfulLoad &&
+          nextSnapshot !== previousSnapshot &&
+          nextAlerts.length > 0 &&
+          typeof window !== 'undefined' &&
+          'Notification' in window &&
+          window.Notification.permission === 'granted'
+        ) {
+          const firstAlert = nextAlerts[0]
+          new window.Notification('Mantenimiento detectado', {
+            body: getMaintenanceAlertBody(firstAlert),
+          })
+        }
+
         setArticulos(response.articulos)
         setPrestamos(response.prestamos)
         setMantenimientosTodos(response.mantenimientosTodos ?? [])
         setWarnings(response.warnings)
         setPrestamosPage(1)
+
+        lastMaintenanceSnapshotRef.current = nextSnapshot
+        hasLoadedOnceRef.current = true
       } catch (error) {
         if (!isMounted) return
         setErrorMessage(
@@ -55,26 +136,26 @@ function DocenteDashboardPage() {
             'No se pudo cargar el panel. Verifica la conexion con el backend.',
         )
       } finally {
-        if (isMounted) setLoading(false)
+        if (isMounted && !silent) setLoading(false)
       }
     }
 
     load()
+
+    const intervalId = window.setInterval(() => {
+      load({ silent: true })
+    }, 45000)
+
     return () => {
       isMounted = false
+      window.clearInterval(intervalId)
     }
-  }, [role])
+  }, [role, userId])
 
   const articulosMiCargo = useMemo(() => {
     if (userId == null) return []
     return articulos.filter((a) => sameId(a.idResponsable ?? a.IdResponsable, userId))
   }, [articulos, userId])
-
-  const nombresArticulosMiCargo = useMemo(() => {
-    return new Set(
-      articulosMiCargo.map((a) => normalizeText(a.nombre ?? a.Nombre ?? '')).filter(Boolean),
-    )
-  }, [articulosMiCargo])
 
   const prestamosMios = useMemo(() => {
     if (!userName?.trim()) return []
@@ -132,21 +213,25 @@ function DocenteDashboardPage() {
   const visibleTo = Math.min(sliceStart + ITEMS_PER_PAGE, prestamosOrdenados.length)
   const pageNumbers = getPageNumbers(totalPages)
 
-  const alertasMantenimiento = useMemo(() => {
-    return mantenimientosTodos
-      .filter((m) => {
-        const estado = normalizeText(pick(m, 'estado', 'Estado') ?? '')
-        if (estado === 'finalizado') return false
-        const art = normalizeText(pick(m, 'articulo', 'Articulo') ?? '')
-        return art && nombresArticulosMiCargo.has(art)
+  const alertasMantenimiento = useMemo(
+    () => getMaintenanceAlertsForDocente(mantenimientosTodos, articulos, userId),
+    [mantenimientosTodos, articulos, userId],
+  )
+
+  const mantenimientoResumen = alertasMantenimiento[0]
+  const mantenimientoCount = alertasMantenimiento.length
+
+  const activarNotificaciones = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return
+    const permission = await window.Notification.requestPermission()
+    setNotificationPermission(permission)
+
+    if (permission === 'granted' && mantenimientoResumen) {
+      new window.Notification('Mantenimiento detectado', {
+        body: getMaintenanceAlertBody(mantenimientoResumen),
       })
-      .sort(
-        (a, b) =>
-          new Date(pick(b, 'fechaInicio', 'FechaInicio') ?? 0).getTime() -
-          new Date(pick(a, 'fechaInicio', 'FechaInicio') ?? 0).getTime(),
-      )
-      .slice(0, 12)
-  }, [mantenimientosTodos, nombresArticulosMiCargo])
+    }
+  }
 
   return (
     <ModulePageShell
@@ -212,7 +297,7 @@ function DocenteDashboardPage() {
                         <button
                           className="dashboard-action-button"
                           type="button"
-                          onClick={() => navigate('/prestamos')}
+                          onClick={() => navigate('/mis-prestamos')}
                         >
                           Ver
                         </button>
@@ -264,31 +349,85 @@ function DocenteDashboardPage() {
         </div>
 
         <aside className="dashboard-docente-alerts" aria-labelledby="docente-alertas-titulo">
-          <h3 id="docente-alertas-titulo">Mantenimiento de equipo</h3>
-          <p className="dashboard-docente-alerts-sub">
-            Solo equipos de inventario donde figuras como responsable.
-          </p>
+          <div className="dashboard-docente-alerts-head">
+            <div>
+              <span className="dashboard-docente-alerts-kicker">
+                <AlertTriangle size={16} aria-hidden="true" />
+                Aviso de mantenimiento
+              </span>
+              <h3 id="docente-alertas-titulo">Mantenimiento de equipo</h3>
+              <p className="dashboard-docente-alerts-sub">
+                Solo equipos donde figuras como responsable. Aquí ves lo que está en revisión ahora mismo.
+              </p>
+            </div>
+            <div className="dashboard-docente-alerts-countbox" aria-label={`Tienes ${mantenimientoCount} alertas de mantenimiento`}>
+              <strong>{loading ? '…' : mantenimientoCount}</strong>
+              <span>en curso</span>
+            </div>
+          </div>
+
+          {notificationPermission !== 'granted' && notificationPermission !== 'unsupported' ? (
+            <button
+              type="button"
+              className="dashboard-docente-alerts-notify"
+              onClick={activarNotificaciones}
+            >
+              <BellRing size={15} aria-hidden="true" />
+              Activar aviso del navegador
+            </button>
+          ) : null}
+
           {loading ? (
             <p className="users-empty">Cargando alertas…</p>
           ) : alertasMantenimiento.length === 0 ? (
-            <p className="dashboard-docente-alerts-empty">No hay alertas de mantenimiento de tus equipos.</p>
+            <div className="dashboard-docente-alerts-emptybox">
+              <p className="dashboard-docente-alerts-empty">No hay alertas de mantenimiento de tus equipos.</p>
+            </div>
           ) : (
-            <ul className="dashboard-docente-alerts-list">
-              {alertasMantenimiento.map((m) => {
-                const nombre = pick(m, 'articulo', 'Articulo') ?? 'Equipo'
-                const tipo = pick(m, 'tipo', 'Tipo') ?? ''
-                const desc = pick(m, 'descripcion', 'Descripcion')
-                const texto =
-                  desc?.trim() ||
-                  `El equipo «${nombre}» tiene mantenimiento ${tipo ? `(${tipo})` : ''} en curso.`
-                const id = pick(m, 'idMantenimiento', 'IdMantenimiento')
-                return (
-                  <li key={id} className="dashboard-docente-alerts-item">
-                    {texto}
-                  </li>
-                )
-              })}
-            </ul>
+            <>
+              <article className="dashboard-docente-alerts-highlight">
+                <div className="dashboard-docente-alerts-highlight-icon" aria-hidden="true">
+                  <AlertTriangle size={22} aria-hidden="true" />
+                </div>
+                <div className="dashboard-docente-alerts-highlight-body">
+                  <strong>
+                    {mantenimientoResumen
+                      ? pick(mantenimientoResumen, 'articulo', 'Articulo') ?? 'Equipo en mantenimiento'
+                      : 'Equipo en mantenimiento'}
+                  </strong>
+                  <p>
+                    {mantenimientoResumen
+                      ? getMaintenanceAlertBody(mantenimientoResumen)
+                      : 'Tu equipo quedó bloqueado hasta que finalice la revisión.'}
+                  </p>
+                </div>
+              </article>
+
+              <ul className="dashboard-docente-alerts-list">
+                {alertasMantenimiento.map((m) => {
+                  const nombre = pick(m, 'articulo', 'Articulo') ?? 'Equipo'
+                  const tipo = pick(m, 'tipo', 'Tipo') ?? ''
+                  const desc = pick(m, 'descripcion', 'Descripcion')
+                  const fechaInicio = pick(m, 'fechaInicio', 'FechaInicio')
+                  const texto =
+                    desc?.trim() ||
+                    `El equipo "${nombre}" está en mantenimiento${tipo ? ` (${tipo})` : ''}.`
+                  const id = pick(m, 'idMantenimiento', 'IdMantenimiento')
+                  return (
+                    <li key={id} className="dashboard-docente-alerts-item">
+                      <span className="dashboard-docente-alerts-item-icon" aria-hidden="true">
+                        <AlertTriangle size={16} aria-hidden="true" />
+                      </span>
+                      <div className="dashboard-docente-alerts-item-body">
+                        <strong>{nombre}</strong>
+                        <p>{texto}</p>
+                        <small>{fechaInicio ? `Desde ${formatDateISO(fechaInicio)}` : 'En curso'}</small>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </>
           )}
         </aside>
       </div>

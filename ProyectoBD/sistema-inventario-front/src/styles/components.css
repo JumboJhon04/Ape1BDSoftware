@@ -822,6 +822,287 @@
   align-items: center;
 }
 
+/* ---------- Mis préstamos ---------- */
+.my-loans-filters-card {
+  display: grid;
+  gap: 0;
+}
+
+.my-loans-filter-grid {
+  grid-template-columns: minmax(210px, 260px) auto;
+}
+
+.my-loans-filter-actions {
+  align-self: end;
+}
+
+.my-loans-toolbar {
+  align-items: center;
+}
+
+.my-loans-new-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.my-loans-grid {
+  display: grid;
+  grid-template-columns: 110px 1.35fr 1fr 1fr 1fr 0.85fr 1fr 1fr;
+  gap: 0;
+  align-items: center;
+}
+
+.my-loans-grid span {
+  min-width: 0;
+}
+
+.my-loans-id {
+  font-weight: 800;
+  color: #475569;
+}
+
+.my-loans-article {
+  line-height: 1.35;
+}
+
+.my-loans-action-button {
+  min-height: 36px;
+  border-radius: 8px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid transparent;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.my-loans-action-button-report {
+  background: #f97316;
+  border-color: #ea580c;
+}
+
+.my-loans-action-button-report:hover {
+  background: #ea580c;
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.3);
+  transform: translateY(-1px);
+}
+
+.my-loans-action-button-report:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(249, 115, 22, 0.2);
+}
+
+.my-loans-action-button-view {
+  background: #2563eb;
+  border-color: #1d4ed8;
+}
+
+.my-loans-action-button-view:hover {
+  background: #1d4ed8;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+  transform: translateY(-1px);
+}
+
+.my-loans-action-button-view:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(37, 99, 235, 0.2);
+}
+
+.my-loans-action-empty {
+  color: #94a3b8;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.my-loans-empty-state {
+  border: 1px dashed #d7dce6;
+  background: #fff;
+  border-radius: 14px;
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #475569;
+}
+
+.my-loans-empty-state strong {
+  display: block;
+  color: #1f2937;
+}
+
+.my-loans-empty-state p {
+  margin: 3px 0 0;
+  color: #64748b;
+}
+
+/* ---------- Report Fallo Modal ---------- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 22, 34, 0.45);
+  backdrop-filter: blur(1px);
+  display: grid;
+  place-items: center;
+  z-index: 1000;
+  padding: 16px;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-content {
+  width: min(500px, 100%);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 20px 50px rgba(15, 20, 34, 0.25);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.2s ease;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 20px;
+  border-bottom: 1px solid #e2e7f1;
+  background: #fafbfc;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.modal-close {
+  background: transparent;
+  border: 0;
+  color: #64748b;
+  cursor: pointer;
+  padding: 4px;
+  display: grid;
+  place-items: center;
+  transition: color 0.2s ease;
+}
+
+.modal-close:hover:not(:disabled) {
+  color: #1f2937;
+}
+
+.modal-close:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.modal-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  max-height: calc(100vh - 200px);
+}
+
+.form-label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-label span {
+  font-weight: 700;
+  color: #1f2937;
+  font-size: 0.9rem;
+}
+
+.form-label select,
+.form-label textarea {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  color: #1f2937;
+  background: #fff;
+  transition: border-color 0.2s ease;
+}
+
+.form-label select:focus,
+.form-label textarea:focus {
+  outline: none;
+  border-color: #f97316;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+}
+
+.form-label select:disabled,
+.form-label textarea:disabled {
+  background: #f3f4f6;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.form-label textarea {
+  resize: vertical;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid #e2e7f1;
+  background: #fafbfc;
+  justify-content: flex-end;
+}
+
+.modal-footer .btn {
+  min-width: 100px;
+}
+
+@media (max-width: 960px) {
+  .my-loans-summary-row {
+    grid-template-columns: 1fr;
+  }
+
+  .my-loans-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .my-loans-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .my-loans-grid span {
+    border-right: 0;
+  }
+}
+
 .inventory-icon-button {
   width: 34px;
   height: 34px;
@@ -2115,31 +2396,158 @@
 }
 
 .dashboard-docente-alerts {
-  border: 1px solid #f1d8af;
-  background: linear-gradient(180deg, #fffdf8, #fff8ed);
-  border-radius: 14px;
-  padding: 16px 18px;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+  border: 1px solid #f2c46d;
+  background:
+    radial-gradient(circle at top right, rgba(245, 158, 11, 0.14), transparent 34%),
+    linear-gradient(180deg, #fffdf7, #fff7e8);
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+}
+
+.dashboard-docente-alerts-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 12px;
 }
 
 .dashboard-docente-alerts h3 {
-  margin: 0 0 6px;
-  font-size: 1.02rem;
+  margin: 8px 0 6px;
+  font-size: 1.08rem;
+  font-weight: 900;
+  color: #8b4513;
+}
+
+.dashboard-docente-alerts-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #ffe8c2;
+  color: #9a3412;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.dashboard-docente-alerts-kicker-emoji {
+  font-size: 1.18rem;
+  line-height: 1;
+}
+
+.dashboard-docente-alerts-countbox {
+  min-width: 92px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fff0cf, #ffe3af);
+  border: 1px solid #f5c46f;
+  text-align: center;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.dashboard-docente-alerts-countbox strong {
+  display: block;
+  color: #8a3d12;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.dashboard-docente-alerts-countbox span {
+  display: block;
+  margin-top: 4px;
+  color: #7c4a1d;
+  font-size: 0.75rem;
   font-weight: 800;
-  color: #92400e;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .dashboard-docente-alerts-sub {
-  margin: 0 0 14px;
-  font-size: 0.82rem;
-  color: #64748b;
-  line-height: 1.4;
+  margin: 0;
+  font-size: 0.84rem;
+  color: #6b7280;
+  line-height: 1.45;
+}
+
+.dashboard-docente-alerts-notify {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  border: 1px solid #e7b763;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: #fff7e7;
+  color: #8a4b12;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.dashboard-docente-alerts-notify:hover {
+  background: #ffefcf;
+}
+
+.dashboard-docente-alerts-highlight {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px;
+  margin-bottom: 12px;
+  border-radius: 14px;
+  border: 1px solid #f3c36f;
+  background: linear-gradient(180deg, #fff9ec, #fff2d9);
+}
+
+.dashboard-docente-alerts-highlight-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  background: #ffd58c;
+  font-size: 1.25rem;
+}
+
+.dashboard-docente-alerts-highlight-body {
+  min-width: 0;
+}
+
+.dashboard-docente-alerts-highlight-body strong,
+.dashboard-docente-alerts-item-body strong {
+  color: #6b3410;
+}
+
+.dashboard-docente-alerts-highlight-body p,
+.dashboard-docente-alerts-item-body p {
+  margin: 4px 0 0;
+  color: #4b5563;
+  line-height: 1.45;
+}
+
+.dashboard-docente-alerts-highlight-body p {
+  font-size: 0.9rem;
 }
 
 .dashboard-docente-alerts-empty {
   margin: 0;
   font-size: 0.88rem;
-  color: #64748b;
+  color: #4b5563;
+}
+
+.dashboard-docente-alerts-emptybox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 12px;
+  border-radius: 12px;
+  border: 1px dashed #d7dce6;
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .dashboard-docente-alerts-list {
@@ -2148,18 +2556,54 @@
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .dashboard-docente-alerts-item {
   margin: 0;
-  padding: 11px 12px;
+  padding: 12px;
   background: #fff;
-  border: 1px solid #e8dcc4;
-  border-radius: 10px;
-  font-size: 0.86rem;
-  line-height: 1.45;
-  color: #334155;
+  border: 1px solid #ead7b8;
+  border-radius: 12px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.04);
+}
+
+.dashboard-docente-alerts-item-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #fff2cc;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: #9a3412;
+}
+
+.dashboard-docente-alerts-item-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.dashboard-docente-alerts-item-body strong {
+  display: block;
+  font-size: 0.92rem;
+}
+
+.dashboard-docente-alerts-item-body p {
+  font-size: 0.85rem;
+}
+
+.dashboard-docente-alerts-item-body small {
+  display: block;
+  margin-top: 6px;
+  color: #8a6d3b;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 @media (max-width: 960px) {
@@ -2169,6 +2613,15 @@
 
   .dashboard-docente-kpi {
     grid-template-columns: 1fr;
+  }
+
+  .dashboard-docente-alerts-head {
+    flex-direction: column;
+  }
+
+  .dashboard-docente-alerts-countbox {
+    min-width: 0;
+    width: 100%;
   }
 }
 

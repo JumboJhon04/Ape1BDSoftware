@@ -157,6 +157,7 @@ function AdminInventoryPage() {
     const locations = [...new Set(articulos.map((item) => item.ubicacion).filter(Boolean))].sort()
     return { categories, locations }
   }, [articulos])
+  const docentes = useMemo(() => usuarios.filter(u => u.nombreRol === 'Docente'), [usuarios])
 
   const filteredArticulos = useMemo(() => {
     return articulos.filter((item) => {
@@ -170,8 +171,8 @@ function AdminInventoryPage() {
       const matchesResponsable =
         !appliedFilters.responsable ||
         normalizeText(item.responsable).includes(normalizeText(appliedFilters.responsable))
-      
-      const matchesGeneral = 
+
+      const matchesGeneral =
         !appliedFilters.general ||
         normalizeText(item.nombre).includes(normalizeText(appliedFilters.general))
 
@@ -189,11 +190,8 @@ function AdminInventoryPage() {
   const handleDraftChange = (e) => {
     const { name, value } = e.target
     setDraftFilters((prev) => ({ ...prev, [name]: value }))
-    
-    // Si es responsable o general, aplicamos el filtro en tiempo real
-    if (name === 'responsable' || name === 'general') {
-      setAppliedFilters((prev) => ({ ...prev, [name]: value }))
-    }
+    setAppliedFilters((prev) => ({ ...prev, [name]: value }))
+    setPage(1)
   }
 
   const applyFilters = () => {
@@ -282,18 +280,18 @@ function AdminInventoryPage() {
       }
 
       const response = await createArticulo(payload)
-      
+
       // El back no devuelve el ID, así que lo buscamos en el catálogo por su código único
       let newArtId = response.idArticulo ?? response.IdArticulo
 
       if (!newArtId) {
         const freshCatalog = await getInventoryCatalog()
-        const found = freshCatalog.find(a => 
+        const found = freshCatalog.find(a =>
           (a.codigoInstitucional ?? a.CodigoInstitucional) === payload.codigo
         )
         newArtId = found?.idArticulo ?? found?.IdArticulo
       }
- 
+
       if (selectedFile && newArtId) {
         const { secureUrl } = await uploadImageToCloudinary(selectedFile)
         await linkArticuloImage(newArtId, secureUrl)
@@ -390,7 +388,7 @@ function AdminInventoryPage() {
     }
     setSelectedFile(file)
   }
- 
+
   // ---------- Baja (Dar de baja) ----------
   const handleBajaClick = (item) => {
     const estado = normalizeText(item.estado)
@@ -407,7 +405,7 @@ function AdminInventoryPage() {
     setBajaError('')
     setShowBajaModal(true)
   }
- 
+
   const confirmBaja = async () => {
     if (!bajaArticulo) return
     setBajaSubmitting(true)
@@ -426,10 +424,10 @@ function AdminInventoryPage() {
         idResponsable: bajaArticulo.idResponsable,
         estado: 'DadoDeBaja', // Cambiamos el estado
       }
-      
+
       const idSano = bajaArticulo.idArticulo ?? bajaArticulo.IdArticulo
       await updateArticulo(idSano, payload)
-      
+
       setShowBajaModal(false)
       setBajaArticulo(null)
       await loadInventory()
@@ -482,33 +480,30 @@ function AdminInventoryPage() {
             </label>
 
             <label>
-            <span>Buscar por Nombre</span>
-            <input
-              type="text"
-              name="general"
-              value={draftFilters.general}
-              onChange={handleDraftChange}
-              placeholder="Ej: Laptop, Proyector..."
-            />
-          </label>
+              <span>Buscar por Nombre</span>
+              <input
+                type="text"
+                name="general"
+                value={draftFilters.general}
+                onChange={handleDraftChange}
+                placeholder="Ej: Laptop, Proyector..."
+              />
+            </label>
 
-          <label>
-            <span>Responsable</span>
-            <input
-              type="text"
-              name="responsable"
-              value={draftFilters.responsable}
-              onChange={handleDraftChange}
-              placeholder="Nombre del responsable"
-            />
-          </label>
+            <label>
+              <span>Responsable</span>
+              <input
+                type="text"
+                name="responsable"
+                value={draftFilters.responsable}
+                onChange={handleDraftChange}
+                placeholder="Nombre del responsable"
+              />
+            </label>
 
             <div className="inventory-filter-actions">
-              <button className="btn btn-primary" type="button" onClick={applyFilters}>
-                Aplicar Filtros
-              </button>
               <button className="btn btn-ghost" type="button" onClick={clearFilters}>
-                Limpiar
+                Limpiar Filtros
               </button>
             </div>
           </div>
@@ -706,7 +701,7 @@ function AdminInventoryPage() {
                   Responsable
                   <select name="idResponsable" value={editForm.idResponsable} onChange={handleEditChange}>
                     <option value="">-- Seleccionar --</option>
-                    {usuarios.map((u) => (
+                    {docentes.map((u) => (
                       <option key={u.idUsuario} value={u.idUsuario}>{u.nombre}</option>
                     ))}
                   </select>
@@ -855,7 +850,7 @@ function AdminInventoryPage() {
                   Responsable
                   <select name="idResponsable" value={editForm.idResponsable} onChange={handleEditChange}>
                     <option value="">-- Seleccionar --</option>
-                    {usuarios.map((u) => (
+                    {docentes.map((u) => (
                       <option key={u.idUsuario} value={u.idUsuario}>{u.nombre}</option>
                     ))}
                   </select>

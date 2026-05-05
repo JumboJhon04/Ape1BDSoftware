@@ -263,6 +263,8 @@ namespace SistemaInventario.Infrastructure.Repositories
 
             var prestamos = await (from p in _context.Prestamos
                                    join u in _context.Usuarios on p.IdUsuario equals u.IdUsuario
+                                   join admin in _context.Usuarios on p.IdAdminAutoriza equals admin.IdUsuario into adminJoin
+                                   from admin in adminJoin.DefaultIfEmpty()
                                    select new PrestamoDTO
                                    {
                                        IdPrestamo = p.IdPrestamo,
@@ -270,7 +272,9 @@ namespace SistemaInventario.Infrastructure.Repositories
                                        FechaSalida = p.FechaSalida,
                                        FechaPrevista = p.FechaPrevista,
                                        FechaDevolucionReal = p.FechaDevolucionReal,
-                                       Estado = p.Estado.ToString()
+                                       Estado = p.Estado.ToString(),
+                                       IdAdminAutoriza = p.IdAdminAutoriza,
+                                       NombreAdminAutoriza = admin.Nombre
                                    }).ToListAsync();
 
             await CompletarResumenArticulosAsync(prestamos);
@@ -284,6 +288,8 @@ namespace SistemaInventario.Infrastructure.Repositories
 
             var prestamos = await (from p in _context.Prestamos
                                    join u in _context.Usuarios on p.IdUsuario equals u.IdUsuario
+                                   join admin in _context.Usuarios on p.IdAdminAutoriza equals admin.IdUsuario into adminJoin
+                                   from admin in adminJoin.DefaultIfEmpty()
                                    where p.Estado == EstadoPrestamo.Activo
                                    select new PrestamoDTO
                                    {
@@ -292,7 +298,9 @@ namespace SistemaInventario.Infrastructure.Repositories
                                        FechaSalida = p.FechaSalida,
                                        FechaPrevista = p.FechaPrevista,
                                        FechaDevolucionReal = p.FechaDevolucionReal,
-                                       Estado = p.Estado.ToString()
+                                       Estado = p.Estado.ToString(),
+                                       IdAdminAutoriza = p.IdAdminAutoriza,
+                                       NombreAdminAutoriza = admin.Nombre
                                    }).ToListAsync();
 
             await CompletarResumenArticulosAsync(prestamos);
@@ -380,14 +388,18 @@ namespace SistemaInventario.Infrastructure.Repositories
 
             foreach (var prestamo in prestamos)
             {
-                var nombres = detalles
+                var articulosDelPrestamo = detalles
                     .Where(d => d.IdPrestamo == prestamo.IdPrestamo)
+                    .ToList();
+
+                var nombres = articulosDelPrestamo
                     .Select(d => nombresPorArticuloId.TryGetValue(d.IdArticulo, out var nombre) ? nombre : null)
                     .Where(nombre => !string.IsNullOrWhiteSpace(nombre))
                     .Distinct()
                     .ToList();
 
                 prestamo.CantidadArticulos = nombres.Count;
+                prestamo.IdArticulos = articulosDelPrestamo.Select(d => d.IdArticulo).Distinct().ToList();
 
                 if (nombres.Count == 0)
                 {

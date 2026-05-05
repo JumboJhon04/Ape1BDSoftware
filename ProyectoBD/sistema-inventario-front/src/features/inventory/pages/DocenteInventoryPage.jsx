@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { X, ImageOff, ShoppingBag, Trash2, Check } from 'lucide-react'
+import { AlertTriangle, X, ImageOff, ShoppingBag, Trash2, Check } from 'lucide-react'
 import ModulePageShell from '@/shared/components/ModulePageShell'
 import useAuth from '@/core/auth/useAuth'
 import { getInventoryCatalog, getArticuloImages } from '@/features/inventory/services/inventory.service'
@@ -13,6 +13,11 @@ function resolveImageUrl(urlImagen) {
   const origin = API_BASE_URL.replace(/\/api\/?$/, '')
   const normalizedPath = urlImagen.startsWith('/') ? urlImagen : `/${urlImagen}`
   return `${origin}${normalizedPath}`
+}
+
+function sameId(a, b) {
+  if (a == null || b == null) return false
+  return Number(a) === Number(b)
 }
 
 function ArticuloImage({ idArticulo, alt }) {
@@ -53,7 +58,7 @@ function ArticuloImage({ idArticulo, alt }) {
 }
 
 function DocenteInventoryPage() {
-  const { userName } = useAuth()
+  const { userName, userId } = useAuth()
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
   const [articulos, setArticulos] = useState([])
@@ -103,19 +108,25 @@ function DocenteInventoryPage() {
         return false
       }
 
+      if (sameId(item.idResponsable ?? item.IdResponsable, userId)) {
+        return false
+      }
+
       const matchesCategoria = appliedFilters.categoria === 'Todas' || normalizeText(item.categoria) === normalizeText(appliedFilters.categoria)
       const matchesSearch = !appliedFilters.search || normalizeText(item.nombre).includes(normalizeText(appliedFilters.search)) || normalizeText(item.codigoInstitucional).includes(normalizeText(appliedFilters.search))
       return matchesCategoria && matchesSearch
     })
-  }, [articulos, appliedFilters])
+  }, [articulos, appliedFilters, userId])
+
+  const articulosBajoMiResponsabilidad = useMemo(() => {
+    if (userId == null) return []
+    return articulos.filter((item) => sameId(item.idResponsable ?? item.IdResponsable, userId))
+  }, [articulos, userId])
 
   const handleDraftChange = (e) => {
     const { name, value } = e.target
     setDraftFilters((prev) => ({ ...prev, [name]: value }))
-  }
-
-  const applyFilters = () => {
-    setAppliedFilters(draftFilters)
+    setAppliedFilters((prev) => ({ ...prev, [name]: value }))
   }
 
   const toggleSelection = (item) => {
@@ -168,6 +179,12 @@ function DocenteInventoryPage() {
       return
     }
 
+    const propios = selectedArticulos.filter((item) => sameId(item.idResponsable ?? item.IdResponsable, userId))
+    if (propios.length > 0) {
+      setSolicitarError('No puedes solicitar equipos de los que eres responsable.')
+      return
+    }
+
     const prevDate = new Date(fechaDevolucion)
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -211,8 +228,15 @@ function DocenteInventoryPage() {
       >
         {errorMessage ? <p className="feedback-error">{errorMessage}</p> : null}
 
+        {articulosBajoMiResponsabilidad.length > 0 ? (
+          <div className="inventory-warning-banner">
+            <AlertTriangle size={16} aria-hidden="true" />
+            <p>Los equipos que están bajo tu responsabilidad no se muestran aquí y no pueden solicitarse.</p>
+          </div>
+        ) : null}
+
         <section className="inventory-filters-card">
-          <div className="inventory-filter-grid" style={{ gridTemplateColumns: '1fr 2fr auto' }}>
+          <div className="inventory-filter-grid" style={{ gridTemplateColumns: '1fr 2fr' }}>
             <label>
               <span>Categoría</span>
               <select name="categoria" value={draftFilters.categoria} onChange={handleDraftChange}>
@@ -234,11 +258,6 @@ function DocenteInventoryPage() {
               />
             </label>
 
-            <div className="inventory-filter-actions" style={{ alignSelf: 'end' }}>
-              <button className="btn btn-primary" type="button" onClick={applyFilters}>
-                Aplicar Filtros
-              </button>
-            </div>
           </div>
         </section>
 
