@@ -122,17 +122,24 @@ namespace SistemaInventario.Infrastructure.Repositories
         {
             var limite = top <= 0 ? 5 : top;
 
-            return await (from m in _context.Movimientos
-                          join a in _context.Articulos on m.IdArticulo equals a.IdArticulo
-                          group m by new { a.IdArticulo, a.Nombre } into g
-                          orderby g.Count() descending
-                          select new
-                          {
-                              IdArticulo = g.Key.IdArticulo,
-                              Articulo = g.Key.Nombre,
-                              TotalMovimientos = g.Count(),
-                              UltimoMovimiento = g.Max(x => x.FechaMov)
-                          }).Take(limite).ToListAsync<object>();
+            // Oracle 10g no soporta "FETCH FIRST ... ROWS ONLY".
+            // Para evitar ORA-00933, materializamos y aplicamos Take en memoria.
+            var data = await (from m in _context.Movimientos
+                              join a in _context.Articulos on m.IdArticulo equals a.IdArticulo
+                              group m by new { a.IdArticulo, a.Nombre } into g
+                              orderby g.Count() descending
+                              select new
+                              {
+                                  IdArticulo = g.Key.IdArticulo,
+                                  Articulo = g.Key.Nombre,
+                                  TotalMovimientos = g.Count(),
+                                  UltimoMovimiento = g.Max(x => x.FechaMov)
+                              }).ToListAsync();
+
+            return data
+                .Take(limite)
+                .Select(x => (object)x)
+                .ToList();
         }
     }
 }

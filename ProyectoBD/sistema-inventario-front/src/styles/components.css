@@ -399,6 +399,26 @@
   .dashboard-action-button {
     width: 100%;
   }
+
+/* Loan actions compact styling */
+.loan-action-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.loan-action-btn {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  font-weight: 700;
+  border: 0;
+  cursor: pointer;
+}
+.loan-action-btn.secondary { background: #475569; color: #fff }
+.loan-action-btn:disabled { opacity: 0.7; cursor: not-allowed }
 }
 
 .module-role-chip {
@@ -801,6 +821,14 @@
   place-items: center;
   border: 0;
   color: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-right: 6px;
+}
+
+.inventory-icon-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .inventory-icon-button:disabled {
@@ -2059,4 +2087,84 @@
   border-radius: 6px;
   padding: 5px 10px;
   display: inline-block;
+}
+
+/* ── Dashboard docente (panel + alertas) ───────────────────────── */
+.dashboard-docente-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  gap: 22px;
+  align-items: start;
+}
+
+.dashboard-docente-kpi {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.dashboard-docente-loan-grid {
+  grid-template-columns: 1.4fr 1fr 1fr 0.85fr 0.65fr;
+}
+
+.dashboard-docente-alerts {
+  border: 1px solid #f1d8af;
+  background: linear-gradient(180deg, #fffdf8, #fff8ed);
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+}
+
+.dashboard-docente-alerts h3 {
+  margin: 0 0 6px;
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: #92400e;
+}
+
+.dashboard-docente-alerts-sub {
+  margin: 0 0 14px;
+  font-size: 0.82rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.dashboard-docente-alerts-empty {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #64748b;
+}
+
+.dashboard-docente-alerts-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dashboard-docente-alerts-item {
+  margin: 0;
+  padding: 11px 12px;
+  background: #fff;
+  border: 1px solid #e8dcc4;
+  border-radius: 10px;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: #334155;
+}
+
+@media (max-width: 960px) {
+  .dashboard-docente-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-docente-kpi {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 780px) {
+  .dashboard-docente-loan-grid {
+    grid-template-columns: 1fr;
+  }
 }

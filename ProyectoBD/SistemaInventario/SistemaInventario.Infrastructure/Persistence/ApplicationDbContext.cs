@@ -122,7 +122,7 @@ namespace SistemaInventario.Infrastructure.Persistence
                 entity.Property(e => e.FechaFin).HasColumnName("FECHA_FIN");
                 entity.Property(e => e.Costo)
           .HasColumnName("COSTO")
-          .HasPrecision(18, 2);
+          .HasPrecision(10, 2);
 
                 // Mapeamos el Enum como String para Oracle
                 entity.Property(e => e.Estado)

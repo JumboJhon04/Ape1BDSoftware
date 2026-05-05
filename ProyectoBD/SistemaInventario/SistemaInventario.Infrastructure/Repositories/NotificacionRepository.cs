@@ -1,17 +1,28 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using SistemaInventario.Application.DTOs;
 using SistemaInventario.Application.Interfaces;
 using SistemaInventario.Infrastructure.Persistence;
+using System.Net;
+using System.Net.Mail;
 
 namespace SistemaInventario.Infrastructure.Repositories
 {
     public class NotificacionRepository : INotificacionRepository
     {
         private readonly ApplicationDbContext _context;
+        private readonly IConfiguration _configuration;
+        private readonly ILogger<NotificacionRepository> _logger;
 
-        public NotificacionRepository(ApplicationDbContext context)
+        public NotificacionRepository(
+            ApplicationDbContext context,
+            IConfiguration configuration,
+            ILogger<NotificacionRepository> logger)
         {
             _context = context;
+            _configuration = configuration;
+            _logger = logger;
         }
 
         public async Task<bool> CrearNotificacionAsync(NotificacionCreateDTO dto)
@@ -43,13 +54,53 @@ namespace SistemaInventario.Infrastructure.Repositories
             }
         }
 
-        public async Task<IEnumerable<object>> ObtenerPendientesAsync()
+        public async Task<IEnumerable<object>> ObtenerPendientesAsync(int idUsuario)
         {
-            // Join simple en memoria para evitar ORA-00933
-            var notis = await _context.Set<Domain.Entities.Notificacion>()
-                .Where(n => n.EstadoEnvio == "Pendiente").ToListAsync();
+            var connection = _context.Database.GetDbConnection();
+            var wasClosed = connection.State != System.Data.ConnectionState.Open;
 
-            return notis;
+            if (wasClosed)
+                await connection.OpenAsync();
+
+            try
+            {
+                await using var command = connection.CreateCommand();
+                // Oracle 10g: usar ROWNUM sobre subconsulta ordenada para limitar resultados.
+                command.CommandText = @"
+                    SELECT ID_NOTIFICACION, ID_PRESTAMO, MENSAJE, ESTADO_ENVIO
+                    FROM (
+                        SELECT N.ID_NOTIFICACION, N.ID_PRESTAMO, N.MENSAJE, N.ESTADO_ENVIO
+                        FROM NOTIFICACIONES N
+                        INNER JOIN PRESTAMOS P ON P.ID_PRESTAMO = N.ID_PRESTAMO
+                        WHERE P.ID_USUARIO = :idUsuario
+                        ORDER BY ID_NOTIFICACION DESC
+                    )
+                    WHERE ROWNUM <= 20";
+                var parameter = command.CreateParameter();
+                parameter.ParameterName = "idUsuario";
+                parameter.Value = idUsuario;
+                command.Parameters.Add(parameter);
+
+                var result = new List<object>();
+                await using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    result.Add(new
+                    {
+                        IdNotificacion = reader.GetInt32(0),
+                        IdPrestamo = reader.GetInt32(1),
+                        Mensaje = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
+                        EstadoEnvio = reader.IsDBNull(3) ? "Pendiente" : reader.GetString(3)
+                    });
+                }
+
+                return result;
+            }
+            finally
+            {
+                if (wasClosed)
+                    await connection.CloseAsync();
+            }
         }
 
         public async Task<bool> MarcarComoEnviadaAsync(int idNotificacion)
@@ -57,6 +108,200 @@ namespace SistemaInventario.Infrastructure.Repositories
             var sql = "UPDATE NOTIFICACIONES SET ESTADO_ENVIO = 'Enviado' WHERE ID_NOTIFICACION = {0}";
             await _context.Database.ExecuteSqlRawAsync(sql, idNotificacion);
             return true;
+        }
+
+        public async Task<int> EnviarPendientesAsync()
+        {
+            var pendientes = await ObtenerPendientesConCorreoAsync();
+            return await EnviarListaPendientesAsync(pendientes);
+        }
+
+        public async Task<int> EnviarPendientesPorPrestamoAsync(int idPrestamo)
+        {
+            var pendientes = await ObtenerPendientesConCorreoAsync(idPrestamo);
+            return await EnviarListaPendientesAsync(pendientes);
+        }
+
+        private async Task<int> EnviarListaPendientesAsync(List<NotificacionPendienteCorreo> pendientes)
+        {
+            var enviados = 0;
+
+            foreach (var noti in pendientes)
+            {
+                try
+                {
+                    var enviado = await IntentarEnviarCorreoAsync(noti.Correo, "Recordatorio de préstamo", noti.Mensaje);
+                    if (!enviado) continue;
+
+                    var sql = "UPDATE NOTIFICACIONES SET ESTADO_ENVIO = 'Enviado' WHERE ID_NOTIFICACION = {0}";
+                    await _context.Database.ExecuteSqlRawAsync(sql, noti.IdNotificacion);
+                    enviados++;
+                }
+                catch (SmtpException ex)
+                {
+                    // Si falla SMTP (auth, conexión, etc.) dejamos la notificación en Pendiente.
+                    // Así se puede reintentar luego sin romper el flujo principal.
+                    _logger.LogWarning(
+                        ex,
+                        "No se pudo enviar la notificación {IdNotificacion} por SMTP. Destino: {Destino}. Motivo: {Motivo}. Se mantiene en Pendiente.",
+                        noti.IdNotificacion,
+                        noti.Correo,
+                        ex.Message);
+                    continue;
+                }
+                catch (Exception ex)
+                {
+                    // Evita cortar el lote completo por un error puntual.
+                    _logger.LogWarning(
+                        ex,
+                        "Fallo inesperado enviando notificación {IdNotificacion}. Destino: {Destino}. Se mantiene en Pendiente.",
+                        noti.IdNotificacion,
+                        noti.Correo);
+                    continue;
+                }
+            }
+
+            return enviados;
+        }
+
+        private async Task<List<NotificacionPendienteCorreo>> ObtenerPendientesConCorreoAsync()
+        {
+            var connection = _context.Database.GetDbConnection();
+            var wasClosed = connection.State != System.Data.ConnectionState.Open;
+
+            if (wasClosed)
+                await connection.OpenAsync();
+
+            try
+            {
+                await using var command = connection.CreateCommand();
+                command.CommandText = @"
+                    SELECT N.ID_NOTIFICACION, U.CORREO, N.MENSAJE
+                    FROM NOTIFICACIONES N
+                    INNER JOIN PRESTAMOS P ON P.ID_PRESTAMO = N.ID_PRESTAMO
+                    INNER JOIN USUARIOS U ON U.ID_USUARIO = P.ID_USUARIO
+                    WHERE N.ESTADO_ENVIO = 'Pendiente'";
+
+                var pendientes = new List<NotificacionPendienteCorreo>();
+                await using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    pendientes.Add(new NotificacionPendienteCorreo
+                    {
+                        IdNotificacion = reader.GetInt32(0),
+                        Correo = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+                        Mensaje = reader.IsDBNull(2) ? string.Empty : reader.GetString(2)
+                    });
+                }
+
+                return pendientes;
+            }
+            finally
+            {
+                if (wasClosed)
+                    await connection.CloseAsync();
+            }
+        }
+
+        private async Task<List<NotificacionPendienteCorreo>> ObtenerPendientesConCorreoAsync(int idPrestamo)
+        {
+            var connection = _context.Database.GetDbConnection();
+            var wasClosed = connection.State != System.Data.ConnectionState.Open;
+
+            if (wasClosed)
+                await connection.OpenAsync();
+
+            try
+            {
+                await using var command = connection.CreateCommand();
+                command.CommandText = @"
+                    SELECT N.ID_NOTIFICACION, U.CORREO, N.MENSAJE
+                    FROM NOTIFICACIONES N
+                    INNER JOIN PRESTAMOS P ON P.ID_PRESTAMO = N.ID_PRESTAMO
+                    INNER JOIN USUARIOS U ON U.ID_USUARIO = P.ID_USUARIO
+                    WHERE N.ESTADO_ENVIO = 'Pendiente'
+                      AND N.ID_PRESTAMO = :idPrestamo";
+
+                var parameter = command.CreateParameter();
+                parameter.ParameterName = "idPrestamo";
+                parameter.Value = idPrestamo;
+                command.Parameters.Add(parameter);
+
+                var pendientes = new List<NotificacionPendienteCorreo>();
+                await using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    pendientes.Add(new NotificacionPendienteCorreo
+                    {
+                        IdNotificacion = reader.GetInt32(0),
+                        Correo = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+                        Mensaje = reader.IsDBNull(2) ? string.Empty : reader.GetString(2)
+                    });
+                }
+
+                return pendientes;
+            }
+            finally
+            {
+                if (wasClosed)
+                    await connection.CloseAsync();
+            }
+        }
+
+        private async Task<bool> IntentarEnviarCorreoAsync(string destino, string asunto, string cuerpo)
+        {
+            if (string.IsNullOrWhiteSpace(destino))
+                return false;
+
+            var simulateOnly = ParseBool(_configuration["Smtp:SimulateOnly"], true);
+            if (simulateOnly)
+                return true;
+
+            var host = _configuration["Smtp:Host"];
+            var from = _configuration["Smtp:From"];
+            var user = _configuration["Smtp:User"];
+            var password = _configuration["Smtp:Password"];
+            var enableSsl = ParseBool(_configuration["Smtp:EnableSsl"], true);
+            var port = ParseInt(_configuration["Smtp:Port"], 587);
+
+            if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(user) || string.IsNullOrWhiteSpace(password))
+            {
+                _logger.LogWarning("Configuración SMTP incompleta. Verifica Host/From/User/Password.");
+                return false;
+            }
+
+            using var client = new SmtpClient(host, port)
+            {
+                EnableSsl = enableSsl,
+                DeliveryMethod = SmtpDeliveryMethod.Network,
+                UseDefaultCredentials = false
+            };
+
+            if (!string.IsNullOrWhiteSpace(user))
+            {
+                client.Credentials = new NetworkCredential(user, password);
+            }
+
+            using var message = new MailMessage(from, destino, asunto, cuerpo);
+            await client.SendMailAsync(message);
+            return true;
+        }
+
+        private static bool ParseBool(string? value, bool defaultValue)
+        {
+            return bool.TryParse(value, out var parsed) ? parsed : defaultValue;
+        }
+
+        private static int ParseInt(string? value, int defaultValue)
+        {
+            return int.TryParse(value, out var parsed) ? parsed : defaultValue;
+        }
+
+        private sealed class NotificacionPendienteCorreo
+        {
+            public int IdNotificacion { get; set; }
+            public string Correo { get; set; } = string.Empty;
+            public string Mensaje { get; set; } = string.Empty;
         }
     }
 }

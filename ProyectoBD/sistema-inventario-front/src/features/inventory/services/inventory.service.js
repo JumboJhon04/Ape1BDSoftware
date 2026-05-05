@@ -45,6 +45,12 @@ export async function updateArticulo(id, payload) {
   return response.data
 }
 
+/** Registra movimiento en BD (origen actual → destino) y actualiza ID_UBICACION del artículo. */
+export async function registrarMovimiento(payload) {
+  const response = await httpClient.post('/Movimientos', payload)
+  return response.data
+}
+
 export async function createArticulo(payload) {
   const response = await httpClient.post('/Articulos', payload)
   return response.data

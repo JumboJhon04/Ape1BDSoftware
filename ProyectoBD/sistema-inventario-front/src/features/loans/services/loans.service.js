@@ -47,6 +47,15 @@ export const createAdminLoan = async (payload) => {
 }
 
 /**
+ * Crea un recordatorio asociado a un préstamo
+ * @param {number} idPrestamo - ID del préstamo vencido/activo
+ */
+export const sendLoanReminder = async (idPrestamo) => {
+  const response = await api.post(`/Notificaciones/prestamo/${idPrestamo}/recordar`)
+  return response.data
+}
+
+/**
  * Rechaza una solicitud de préstamo pendiente
  * @param {number} id - ID del préstamo
  */

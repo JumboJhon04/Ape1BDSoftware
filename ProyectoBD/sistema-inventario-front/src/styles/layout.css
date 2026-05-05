@@ -32,6 +32,113 @@
   gap: 12px;
 }
 
+.header-notifications {
+  position: relative;
+}
+
+.header-notification-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #fff;
+  color: #c93844;
+  font-size: 0.72rem;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  padding: 0 4px;
+  border: 1px solid rgba(201, 56, 68, 0.2);
+}
+
+.header-notification-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(360px, 82vw);
+  max-height: 420px;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #fff;
+  color: #243047;
+  box-shadow: 0 18px 42px rgba(16, 23, 38, 0.22);
+  border: 1px solid #d9dde6;
+  z-index: 40;
+}
+
+.header-notification-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e4e8ef;
+  background: #f8fafc;
+}
+
+.header-notification-list {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.header-notification-item {
+  padding: 14px 16px;
+  border-bottom: 1px solid #edf1f6;
+}
+
+.header-notification-item:last-child {
+  border-bottom: 0;
+}
+
+.header-notification-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.header-notification-loan {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #7c3140;
+  text-transform: uppercase;
+}
+
+.header-notification-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.header-notification-status-sent {
+  background: #e8f7ee;
+  color: #1d7244;
+}
+
+.header-notification-status-pending {
+  background: #fff0d7;
+  color: #8b5f14;
+}
+
+.header-notification-item p {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: #485468;
+}
+
+.header-notification-empty {
+  margin: 0;
+  padding: 18px 16px;
+  color: #6b7280;
+  text-align: center;
+}
+
 .header-user-role {
   padding: 5px 10px;
   border-radius: 999px;

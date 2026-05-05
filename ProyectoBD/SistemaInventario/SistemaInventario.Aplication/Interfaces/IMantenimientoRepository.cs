@@ -7,5 +7,6 @@ namespace SistemaInventario.Application.Interfaces
         Task<bool> IniciarMantenimientoAsync(MantenimientoCreateDTO dto);
         Task<bool> FinalizarMantenimientoAsync(MantenimientoFinDTO dto);
         Task<IEnumerable<object>> ObtenerMantenimientosActivosAsync();
+        Task<IEnumerable<object>> ObtenerTodosLosMantenimientosAsync();
     }
 }

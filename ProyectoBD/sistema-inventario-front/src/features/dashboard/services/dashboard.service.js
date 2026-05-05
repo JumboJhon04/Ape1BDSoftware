@@ -19,6 +19,11 @@ async function getMantenimientosActivos() {
   return toArray(response.data)
 }
 
+async function getMantenimientosTodos() {
+  const response = await httpClient.get('/Mantenimientos')
+  return toArray(response.data)
+}
+
 export async function getDashboardData(role) {
   const articulosPromise = getCatalogoArticulos()
 
@@ -31,17 +36,21 @@ export async function getDashboardData(role) {
       articulos,
       prestamos: [],
       mantenimientos: [],
+      mantenimientosTodos: [],
       warnings: [
         'Tu perfil no tiene acceso al listado global de prestamos y mantenimientos.',
       ],
     }
   }
 
-  const [articulosResult, prestamosResult, mantenimientosResult] = await Promise.allSettled([
+  const settled = await Promise.allSettled([
     articulosPromise,
     getPrestamos(),
     getMantenimientosActivos(),
+    role === 'docente' ? getMantenimientosTodos() : Promise.resolve([]),
   ])
+
+  const [articulosResult, prestamosResult, mantenimientosResult, mantTodosResult] = settled
 
   const warnings = []
 
@@ -57,11 +66,17 @@ export async function getDashboardData(role) {
     warnings.push('No se pudo cargar la tabla de mantenimientos activos desde el backend.')
   }
 
+  if (role === 'docente' && mantTodosResult.status === 'rejected') {
+    warnings.push('No se pudo cargar el detalle de mantenimientos para alertas.')
+  }
+
   return {
     articulos: articulosResult.value,
     prestamos: prestamosResult.status === 'fulfilled' ? prestamosResult.value : [],
     mantenimientos:
       mantenimientosResult.status === 'fulfilled' ? mantenimientosResult.value : [],
+    mantenimientosTodos:
+      role === 'docente' && mantTodosResult.status === 'fulfilled' ? mantTodosResult.value : [],
     warnings,
   }
 }

@@ -6,6 +6,7 @@ using SistemaInventario.Domain.Entities;
 using SistemaInventario.Domain.Enums;
 using SistemaInventario.Infrastructure.Persistence;
 using System.Data;
+using System.Data.Common;
 
 namespace SistemaInventario.Infrastructure.Repositories
 {
@@ -41,12 +42,7 @@ namespace SistemaInventario.Infrastructure.Repositories
                 // 2. Crear la entidad de mantenimiento
                 var mantenimiento = new Mantenimiento(dto.IdArticulo, dto.Tipo, dto.ProveedorTecnico, dto.Descripcion);
 
-                var sqlInsert = @"INSERT INTO MANTENIMIENTOS (ID_ARTICULO, TIPO, PROVEEDOR_TECNICO, DESCRIPCION, FECHA_INICIO, ESTADO_MANTENIMIENTO) 
-                         VALUES ({0}, {1}, {2}, {3}, {4}, 'En_progreso')";
-
-                await _context.Database.ExecuteSqlRawAsync(sqlInsert,
-                    mantenimiento.IdArticulo, mantenimiento.Tipo, mantenimiento.ProveedorTecnico,
-                    mantenimiento.Descripcion, mantenimiento.FechaInicio);
+                await InsertarMantenimientoAsync(mantenimiento);
 
                 // 3. Bloquear el artículo
                 await _context.Database.ExecuteSqlRawAsync(
@@ -83,14 +79,7 @@ namespace SistemaInventario.Infrastructure.Repositories
 
                 // 2. Actualizar mantenimiento con SQL Crudo (Más seguro para 10g)
                 // Usamos concatenación simple para la descripción para evitar líos de sintaxis
-                var sqlUpdateMant = @"UPDATE MANTENIMIENTOS SET 
-                             FECHA_FIN = {0}, 
-                             COSTO = {1}, 
-                             ESTADO_MANTENIMIENTO = 'Finalizado'
-                             WHERE ID_MANTENIMIENTO = {2}";
-
-                await _context.Database.ExecuteSqlRawAsync(sqlUpdateMant,
-                    DateTime.Now, dto.Costo, dto.IdMantenimiento);
+                await FinalizarMantenimientoEnBdAsync(dto.IdMantenimiento, dto.Costo);
 
                 // 3. Liberar el artículo (Volver a 'Disponible')
                 await _context.Database.ExecuteSqlRawAsync(
@@ -118,38 +107,13 @@ namespace SistemaInventario.Infrastructure.Repositories
 
         private async Task<int?> ObtenerIdArticuloPorMantenimientoAsync(int idMantenimiento)
         {
-            const string sql = @"SELECT ID_ARTICULO
-                                 FROM MANTENIMIENTOS
-                                 WHERE ID_MANTENIMIENTO = :p_id";
+            // Usamos ToListAsync + FirstOrDefault para evitar que EF genere FETCH FIRST (incompatible con Oracle 10g)
+            var lista = await _context.Mantenimientos
+                .Where(m => m.IdMantenimiento == idMantenimiento)
+                .Select(m => (int?)m.IdArticulo)
+                .ToListAsync();
 
-            var connection = _context.Database.GetDbConnection();
-            var wasClosed = connection.State != System.Data.ConnectionState.Open;
-
-            if (wasClosed)
-                await connection.OpenAsync();
-
-            try
-            {
-                await using var command = connection.CreateCommand();
-                command.CommandText = sql;
-                command.Transaction = _context.Database.CurrentTransaction?.GetDbTransaction();
-
-                var parameter = command.CreateParameter();
-                parameter.ParameterName = "p_id";
-                parameter.Value = idMantenimiento;
-                command.Parameters.Add(parameter);
-
-                var result = await command.ExecuteScalarAsync();
-                if (result == null || result == DBNull.Value)
-                    return null;
-
-                return Convert.ToInt32(result);
-            }
-            finally
-            {
-                if (wasClosed)
-                    await connection.CloseAsync();
-            }
+            return lista.FirstOrDefault();
         }
 
         public async Task<IEnumerable<object>> ObtenerMantenimientosActivosAsync()
@@ -206,6 +170,110 @@ namespace SistemaInventario.Infrastructure.Repositories
                 if (wasClosed)
                     await connection.CloseAsync();
             }
+        }
+
+        public async Task<IEnumerable<object>> ObtenerTodosLosMantenimientosAsync()
+        {
+            // Oracle 10g falla con NUMBER(10,2); usamos raw SQL con CAST como workaround
+            const string sql = @"
+                SELECT
+                    m.ID_MANTENIMIENTO,
+                    a.NOMBRE AS ARTICULO,
+                    m.TIPO,
+                    m.PROVEEDOR_TECNICO,
+                    m.DESCRIPCION,
+                    m.FECHA_INICIO,
+                    m.FECHA_FIN,
+                    CAST(m.COSTO AS VARCHAR2(20)) AS COSTO,
+                    CAST(m.ESTADO_MANTENIMIENTO AS VARCHAR2(50)) AS ESTADO
+                FROM MANTENIMIENTOS m
+                INNER JOIN ARTICULOS a ON a.ID_ARTICULO = m.ID_ARTICULO
+                ORDER BY m.FECHA_INICIO DESC";
+
+            var connection = _context.Database.GetDbConnection();
+            var wasClosed = connection.State != ConnectionState.Open;
+
+            if (wasClosed)
+                await connection.OpenAsync();
+
+            try
+            {
+                await using var command = connection.CreateCommand();
+                command.CommandText = sql;
+                command.Transaction = _context.Database.CurrentTransaction?.GetDbTransaction();
+
+                var resultado = new List<object>();
+
+                await using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    var costoStr = reader.IsDBNull(7) ? null : reader.GetString(7);
+                    decimal? costo = null;
+                    if (!string.IsNullOrEmpty(costoStr) && decimal.TryParse(costoStr, out var costoValue))
+                        costo = costoValue;
+
+                    resultado.Add(new
+                    {
+                        IdMantenimiento = reader.GetInt32(0),
+                        Articulo = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+                        Tipo = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
+                        ProveedorTecnico = reader.IsDBNull(3) ? null : reader.GetString(3),
+                        Descripcion = reader.IsDBNull(4) ? null : reader.GetString(4),
+                        FechaInicio = reader.IsDBNull(5) ? (DateTime?)null : reader.GetDateTime(5),
+                        FechaFin = reader.IsDBNull(6) ? (DateTime?)null : reader.GetDateTime(6),
+                        Costo = costo,
+                        Estado = reader.IsDBNull(8) ? string.Empty : reader.GetString(8)
+                    });
+                }
+
+                return resultado;
+            }
+            finally
+            {
+                if (wasClosed)
+                    await connection.CloseAsync();
+            }
+        }
+
+        private async Task InsertarMantenimientoAsync(Mantenimiento mantenimiento)
+        {
+            const string sql = @"
+                INSERT INTO MANTENIMIENTOS
+                    (ID_ARTICULO, TIPO, PROVEEDOR_TECNICO, DESCRIPCION, FECHA_INICIO, ESTADO_MANTENIMIENTO)
+                VALUES
+                    ({0}, {1}, {2}, {3}, {4}, 'En_progreso')";
+
+            await _context.Database.ExecuteSqlRawAsync(
+                sql,
+                CrearParametro(DbType.Int32, mantenimiento.IdArticulo),
+                CrearParametro(DbType.String, mantenimiento.Tipo),
+                CrearParametro(DbType.String, mantenimiento.ProveedorTecnico),
+                CrearParametro(DbType.String, mantenimiento.Descripcion),
+                CrearParametro(DbType.DateTime, mantenimiento.FechaInicio));
+        }
+
+        private async Task FinalizarMantenimientoEnBdAsync(int idMantenimiento, decimal costo)
+        {
+            const string sql = @"
+                UPDATE MANTENIMIENTOS SET 
+                    FECHA_FIN = {0},
+                    COSTO = {1},
+                    ESTADO_MANTENIMIENTO = 'Finalizado'
+                WHERE ID_MANTENIMIENTO = {2}";
+
+            await _context.Database.ExecuteSqlRawAsync(
+                sql,
+                CrearParametro(DbType.DateTime, DateTime.Now),
+                CrearParametro(DbType.Decimal, costo),
+                CrearParametro(DbType.Int32, idMantenimiento));
+        }
+
+        private DbParameter CrearParametro(DbType dbType, object? value)
+        {
+            var parameter = _context.Database.GetDbConnection().CreateCommand().CreateParameter();
+            parameter.DbType = dbType;
+            parameter.Value = value ?? DBNull.Value;
+            return parameter;
         }
     }
 }

@@ -1,5 +1,6 @@
 @import './layout.css';
 @import './components.css';
+@import './reports.css';
 
 * {
   box-sizing: border-box;

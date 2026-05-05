@@ -1,13 +1,20 @@
-import { useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { Bell, LogOut, Menu, X } from 'lucide-react'
 import { appRoutes } from '@/app/router/routes'
 import { getRoutesByRole, toRoleLabel } from '@/core/auth/roles'
 import useAuth from '@/core/auth/useAuth'
+import { getSidebarNavEntries } from '@/navigation/sidebarMenu'
+import { getNotifications } from '@/features/notifications/services/notifications.service'
 
 function DashboardLayout() {
+  const location = useLocation()
   const { role: currentRole, userName, logout } = useAuth()
   const visibleRoutes = getRoutesByRole(appRoutes, currentRole).filter((route) => route.showInMenu !== false)
+  const menuEntries = useMemo(
+    () => getSidebarNavEntries(currentRole, visibleRoutes),
+    [currentRole, visibleRoutes],
+  )
   const initials =
     userName
       ?.split(' ')
@@ -17,6 +24,35 @@ function DashboardLayout() {
       .join('') || 'US'
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [notifications, setNotifications] = useState([])
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadNotifications = async () => {
+      try {
+        const data = await getNotifications()
+        if (!isMounted) return
+        setNotifications(data)
+      } catch (error) {
+        if (!isMounted) return
+        setNotifications([])
+      }
+    }
+
+    loadNotifications()
+    const intervalId = window.setInterval(loadNotifications, 15000)
+
+    return () => {
+      isMounted = false
+      window.clearInterval(intervalId)
+    }
+  }, [])
+
+  const unreadCount = useMemo(() => {
+    return notifications.filter((item) => String(item.estadoEnvio ?? '').toLowerCase() === 'pendiente').length
+  }, [notifications])
 
   return (
     <div className="app-shell">
@@ -35,9 +71,45 @@ function DashboardLayout() {
 
         <div className="header-user">
           <span className="header-user-role">{toRoleLabel(currentRole)}</span>
-          <button className="header-icon-button" type="button" aria-label="Notificaciones">
-            <Bell size={16} aria-hidden="true" />
-          </button>
+          <div className="header-notifications">
+            <button
+              className="header-icon-button"
+              type="button"
+              aria-label="Notificaciones"
+              onClick={() => setNotificationsOpen((prev) => !prev)}
+            >
+              <Bell size={16} aria-hidden="true" />
+              {notifications.length > 0 ? (
+                <span className="header-notification-badge">{unreadCount > 0 ? unreadCount : notifications.length}</span>
+              ) : null}
+            </button>
+
+            {notificationsOpen ? (
+              <div className="header-notification-panel">
+                <div className="header-notification-panel-head">
+                  <strong>Notificaciones</strong>
+                  <span>{notifications.length}</span>
+                </div>
+                <div className="header-notification-list">
+                  {notifications.length === 0 ? (
+                    <p className="header-notification-empty">No hay notificaciones registradas.</p>
+                  ) : (
+                    notifications.map((item) => (
+                      <article key={item.idNotificacion} className="header-notification-item">
+                        <div className="header-notification-item-top">
+                          <span className="header-notification-loan">Prestamo #{String(item.idPrestamo).padStart(3, '0')}</span>
+                          <span className={`header-notification-status ${String(item.estadoEnvio ?? '').toLowerCase() === 'enviado' ? 'header-notification-status-sent' : 'header-notification-status-pending'}`}>
+                            {item.estadoEnvio ?? 'Pendiente'}
+                          </span>
+                        </div>
+                        <p>{item.mensaje}</p>
+                      </article>
+                    ))
+                  )}
+                </div>
+              </div>
+            ) : null}
+          </div>
           <span className="header-user-name">{userName || 'Usuario'}</span>
           <span className="header-user-avatar">{initials}</span>
           <button className="header-logout" type="button" onClick={logout}>
@@ -59,18 +131,17 @@ function DashboardLayout() {
 
         <aside className={`app-sidebar${sidebarOpen ? ' sidebar-open' : ''}`}>
           <nav className="menu" onClick={() => setSidebarOpen(false)}>
-            {visibleRoutes.map((route) => {
-              const Icon = route.icon
+            {menuEntries.map((entry) => {
+              const Icon = entry.icon
+              const active = entry.match(location)
               return (
                 <NavLink
-                  key={route.path}
-                  to={route.path}
-                  className={({ isActive }) =>
-                    `menu-item ${isActive ? 'menu-item-active' : ''}`
-                  }
+                  key={entry.to}
+                  to={entry.to}
+                  className={() => `menu-item${active ? ' menu-item-active' : ''}`}
                 >
                   <Icon className="menu-icon" size={18} aria-hidden="true" />
-                  <span>{route.title}</span>
+                  <span>{entry.title}</span>
                 </NavLink>
               )
             })}

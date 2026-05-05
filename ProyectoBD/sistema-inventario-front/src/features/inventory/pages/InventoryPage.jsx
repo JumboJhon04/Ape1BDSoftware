@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Eye, Pencil, Archive, X } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import ModulePageShell from '@/shared/components/ModulePageShell'
+import useAuth from '@/core/auth/useAuth'
 import {
   getArticuloImages,
   getCategorias,
@@ -10,6 +11,7 @@ import {
   linkArticuloImage,
   updateArticulo,
   createArticulo,
+  registrarMovimiento,
 } from '@/features/inventory/services/inventory.service'
 import { getUsers } from '@/features/users/services/users.service'
 import { uploadImageToCloudinary } from '@/features/inventory/services/cloudinary.service'
@@ -45,10 +47,13 @@ const initialEditForm = {
   idCategoria: '',
   idUbicacion: '',
   idResponsable: '',
+  motivoMovimiento: '',
 }
 
 function InventoryPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const { userName } = useAuth()
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
   const [articulos, setArticulos] = useState([])
@@ -106,6 +111,15 @@ function InventoryPage() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (searchParams.get('misEquipos') === '1' && userName?.trim()) {
+      const name = userName.trim()
+      setDraftFilters((prev) => ({ ...prev, responsable: name }))
+      setAppliedFilters((prev) => ({ ...prev, responsable: name }))
+      setPage(1)
+    }
+  }, [searchParams, userName])
 
   useEffect(() => {
     let isMounted = true
@@ -208,6 +222,7 @@ function InventoryPage() {
       idCategoria: (item.idCategoria ?? item.IdCategoria) ? String(item.idCategoria ?? item.IdCategoria) : '',
       idUbicacion: (item.idUbicacion ?? item.IdUbicacion) ? String(item.idUbicacion ?? item.IdUbicacion) : '',
       idResponsable: (item.idResponsable ?? item.IdResponsable) ? String(item.idResponsable ?? item.IdResponsable) : '',
+      motivoMovimiento: '',
     })
     setEditError('')
     setEditSuccess('')
@@ -300,16 +315,37 @@ function InventoryPage() {
     setEditForm((prev) => ({ ...prev, [name]: value }))
   }
 
+  const ubicacionCambiaEnEdicion = useMemo(() => {
+    if (!editingArticulo) return false
+    if (!editForm.idUbicacion) return false
+    const prevRaw = editingArticulo.idUbicacion ?? editingArticulo.IdUbicacion
+    const prevStr = prevRaw != null && prevRaw !== '' ? String(prevRaw) : ''
+    const nextStr = String(editForm.idUbicacion)
+    return nextStr !== '' && prevStr !== nextStr
+  }, [editingArticulo, editForm.idUbicacion])
+
   const handleEditSubmit = async (event) => {
     event.preventDefault()
     if (!editForm.codigo || !editForm.nombre || !editForm.idCategoria || !editForm.idUbicacion) {
       setEditError('Completa los campos obligatorios: Código, Nombre, Categoría y Ubicación.')
       return
     }
+    if (ubicacionCambiaEnEdicion && !editForm.motivoMovimiento?.trim()) {
+      setEditError('Indica el motivo del cambio de ubicación (se registrará en el historial de movimientos).')
+      return
+    }
     setEditSubmitting(true)
     setEditError('')
     setEditSuccess('')
     try {
+      const idSano = editingArticulo.idArticulo ?? editingArticulo.IdArticulo
+      if (ubicacionCambiaEnEdicion) {
+        await registrarMovimiento({
+          idArticulo: idSano,
+          idUbicacionDestino: Number(editForm.idUbicacion),
+          motivo: editForm.motivoMovimiento.trim(),
+        })
+      }
       const payload = {
         codigo: editForm.codigo.trim(),
         nombre: editForm.nombre.trim(),
@@ -323,7 +359,6 @@ function InventoryPage() {
         idResponsable: Number(editForm.idResponsable) || editingArticulo.idResponsable,
         estado: editingArticulo.estado,
       }
-      const idSano = editingArticulo.idArticulo ?? editingArticulo.IdArticulo
       await updateArticulo(idSano, payload)
 
       // Si se seleccionó una imagen, subirla y vincularla
@@ -653,6 +688,19 @@ function InventoryPage() {
                     ))}
                   </select>
                 </label>
+
+                {ubicacionCambiaEnEdicion ? (
+                  <label className="articulo-form-span-2">
+                    Motivo del cambio de ubicación *
+                    <textarea
+                      name="motivoMovimiento"
+                      value={editForm.motivoMovimiento}
+                      onChange={handleEditChange}
+                      placeholder="Ej: Reubicación por remodelación del laboratorio, traslado temporal, etc."
+                      rows={2}
+                    />
+                  </label>
+                ) : null}
 
                 <label>
                   Responsable

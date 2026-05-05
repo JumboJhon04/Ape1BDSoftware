@@ -51,5 +51,14 @@ namespace SistemaInventario.API.Controllers
             var lista = await _repository.ObtenerMantenimientosActivosAsync();
             return Ok(lista);
         }
+
+        // GET: api/Mantenimientos
+        [HttpGet]
+        [Authorize(Roles = "Administrador,Docente")]
+        public async Task<IActionResult> GetAll()
+        {
+            var lista = await _repository.ObtenerTodosLosMantenimientosAsync();
+            return Ok(lista);
+        }
     }
 }

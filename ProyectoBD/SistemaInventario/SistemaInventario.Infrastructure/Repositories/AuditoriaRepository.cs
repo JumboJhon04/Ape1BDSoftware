@@ -1,8 +1,11 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using SistemaInventario.Application.DTOs;
 using SistemaInventario.Application.Interfaces;
 using SistemaInventario.Domain.Entities;
 using SistemaInventario.Infrastructure.Persistence;
+using System.Data;
+using System.Data.Common;
 
 namespace SistemaInventario.Infrastructure.Repositories
 {
@@ -17,18 +20,20 @@ namespace SistemaInventario.Infrastructure.Repositories
 
         public async Task RegistrarAccionAsync(AuditoriaCreateDTO dto)
         {
-            // Insert directo a Oracle 10g
-            var sql = @"INSERT INTO AUDITORIA 
-                (ID_USUARIO, TABLA_AFECTADA, ID_REGISTRO_AFECTADO, ACCION, DETALLES_CAMBIO, FECHA_ACCION) 
-                VALUES ({0}, {1}, {2}, {3}, {4}, {5})";
+            const string sql = @"
+                INSERT INTO AUDITORIA 
+                    (ID_USUARIO, TABLA_AFECTADA, ID_REGISTRO_AFECTADO, ACCION, DETALLES_CAMBIO, FECHA_ACCION) 
+                VALUES 
+                    ({0}, {1}, {2}, {3}, {4}, {5})";
 
-            await _context.Database.ExecuteSqlRawAsync(sql,
-                dto.IdUsuario,
-                dto.TablaAfectada,
-                dto.IdRegistroAfectado,
-                dto.Accion,
-                dto.DetallesCambio,
-                DateTime.Now);
+            await _context.Database.ExecuteSqlRawAsync(
+                sql,
+                CrearParametro(DbType.Int32, dto.IdUsuario),
+                CrearParametro(DbType.String, dto.TablaAfectada),
+                CrearParametro(DbType.Int32, dto.IdRegistroAfectado),
+                CrearParametro(DbType.String, dto.Accion),
+                CrearParametro(DbType.String, dto.DetallesCambio),
+                CrearParametro(DbType.DateTime, DateTime.Now));
         }
 
         public async Task<IEnumerable<object>> ObtenerLogCompletoAsync()
@@ -49,6 +54,14 @@ namespace SistemaInventario.Infrastructure.Repositories
                        l.DetallesCambio,
                        l.FechaAccion
                    };
+        }
+
+        private DbParameter CrearParametro(DbType dbType, object? value)
+        {
+            var parameter = _context.Database.GetDbConnection().CreateCommand().CreateParameter();
+            parameter.DbType = dbType;
+            parameter.Value = value ?? DBNull.Value;
+            return parameter;
         }
     }
 }

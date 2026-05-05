@@ -19,6 +19,7 @@ export function AuthProvider({ children }) {
     () => ({
       session,
       role: session?.role ?? null,
+      userId: session?.userId ?? null,
       userName: session?.userName ?? '',
       token: session?.token ?? '',
       isAuthenticated: Boolean(session?.token),

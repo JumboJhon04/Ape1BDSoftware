@@ -6,6 +6,7 @@
         public string NombreUsuario { get; set; } = string.Empty;
         public DateTime? FechaSalida { get; set; }
         public DateTime FechaPrevista { get; set; }
+        public DateTime? FechaDevolucionReal { get; set; }
         public string Estado { get; set; } = string.Empty;
         public int CantidadArticulos { get; set; }
         public string Articulos { get; set; } = string.Empty;

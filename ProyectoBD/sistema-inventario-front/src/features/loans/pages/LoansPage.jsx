@@ -1,7 +1,10 @@
 import { useEffect, useState, useMemo } from 'react'
 import { Eye, Check, X, Undo2, Bell, Search, Plus } from 'lucide-react'
 import ModulePageShell from '@/shared/components/ModulePageShell'
-import { getAllLoans, approveLoan, finalizeLoan, rejectLoan } from '../services/loans.service'
+import { getAllLoans, approveLoan, finalizeLoan, rejectLoan, createAdminLoan, sendLoanReminder } from '../services/loans.service'
+import { getUsers } from '@/features/users/services/users.service'
+import { getInventoryCatalog } from '@/features/inventory/services/inventory.service'
+import CreateLoanModal from '@/features/loans/pages/CreateLoanModal'
 
 function LoansPage() {
   const [loans, setLoans] = useState([])
@@ -63,6 +66,16 @@ function LoansPage() {
   const [showFinalizeModal, setShowFinalizeModal] = useState(false)
   const [finalizingLoan, setFinalizingLoan] = useState(null)
   const [finalizeSubmitting, setFinalizeSubmitting] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [createSubmitting, setCreateSubmitting] = useState(false)
+  const [createError, setCreateError] = useState('')
+  const [users, setUsers] = useState([])
+  const [availableArticles, setAvailableArticles] = useState([])
+  const [createForm, setCreateForm] = useState({
+    idUsuario: '',
+    fechaPrevista: '',
+    articulosIds: [],
+  })
 
   const filteredLoans = useMemo(() => {
     return loans.filter(loan => {
@@ -79,6 +92,23 @@ function LoansPage() {
   const paginatedLoans = filteredLoans.slice(pageStart, pageStart + ITEMS_PER_PAGE)
   const visibleFrom = filteredLoans.length === 0 ? 0 : pageStart + 1
   const visibleTo = Math.min(pageStart + ITEMS_PER_PAGE, filteredLoans.length)
+
+  useEffect(() => {
+    loadCreateReferences()
+  }, [])
+
+  const loadCreateReferences = async () => {
+    try {
+      const [usersData, inventoryData] = await Promise.all([getUsers(), getInventoryCatalog()])
+      setUsers(Array.isArray(usersData) ? usersData : [])
+      const available = (Array.isArray(inventoryData) ? inventoryData : []).filter(
+        (item) => String(item.estado ?? '').toLowerCase() === 'disponible'
+      )
+      setAvailableArticles(available)
+    } catch (error) {
+      console.error(error)
+    }
+  }
 
   // Acciones
   const handleApproveClick = (loan) => {
@@ -152,6 +182,62 @@ function LoansPage() {
   const handleViewDetail = (loan) => {
     setSelectedLoan(loan)
     setShowDetailModal(true)
+  }
+
+  const handleSendReminder = async (loan) => {
+    setErrorMessage('')
+    try {
+      await sendLoanReminder(loan.idPrestamo)
+      setSuccessMessage(`Recordatorio enviado para el préstamo #${String(loan.idPrestamo).padStart(3, '0')}.`)
+    } catch (error) {
+      setErrorMessage(error.response?.data?.error ?? 'No se pudo enviar el recordatorio.')
+    }
+  }
+
+  const openCreateModal = () => {
+    setCreateForm({
+      idUsuario: '',
+      fechaPrevista: '',
+      articulosIds: [],
+    })
+    setCreateError('')
+    setShowCreateModal(true)
+  }
+
+  const handleCreateChange = (event) => {
+    const { name, value } = event.target
+    setCreateForm((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handleCreateArticlesChange = (event) => {
+    const selectedValues = Array.from(event.target.selectedOptions, (option) => Number(option.value))
+    setCreateForm((prev) => ({ ...prev, articulosIds: selectedValues }))
+  }
+
+  const handleCreateSubmit = async () => {
+    setCreateError('')
+    setErrorMessage('')
+
+    if (!createForm.idUsuario || !createForm.fechaPrevista || createForm.articulosIds.length === 0) {
+      setCreateError('Selecciona solicitante, fecha prevista y al menos un artículo.')
+      return
+    }
+
+    setCreateSubmitting(true)
+    try {
+      await createAdminLoan({
+        idUsuario: Number(createForm.idUsuario),
+        fechaPrevista: createForm.fechaPrevista,
+        articulosIds: createForm.articulosIds,
+      })
+      setShowCreateModal(false)
+      setSuccessMessage('Préstamo administrativo creado correctamente.')
+      await Promise.all([loadLoans(), loadCreateReferences()])
+    } catch (error) {
+      setCreateError(error.response?.data?.error ?? 'No se pudo crear la solicitud desde administración.')
+    } finally {
+      setCreateSubmitting(false)
+    }
   }
 
   const getStatusClass = (status) => {
@@ -236,18 +322,19 @@ function LoansPage() {
           <h3>Registro de Préstamos</h3>
           <p>Mostrando {visibleFrom}-{visibleTo} de {filteredLoans.length} registros</p>
         </div>
-        <button className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <button className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={openCreateModal}>
           <Plus size={18} /> Nueva Solicitud
         </button>
       </div>
 
       <div className="inventory-table-card">
-        <div className="inventory-table-head inventory-grid" style={{ gridTemplateColumns: '80px 1.5fr 1.2fr 1fr 1fr 120px 240px' }}>
+        <div className="inventory-table-head inventory-grid" style={{ gridTemplateColumns: '80px 1.5fr 1.2fr 1fr 1fr 1fr 120px 240px' }}>
           <span>ID</span>
           <span>Artículo(s)</span>
           <span>Solicitante</span>
           <span>F. Solicitud</span>
-          <span>F. Devolución</span>
+          <span>F. Prevista</span>
+          <span>F. Dev. Real</span>
           <span>Estado</span>
           <span>Acciones</span>
         </div>
@@ -259,79 +346,42 @@ function LoansPage() {
             <p className="users-empty">No se encontraron préstamos.</p>
           ) : (
             paginatedLoans.map((loan) => (
-              <div key={loan.idPrestamo} className="inventory-table-row inventory-grid" style={{ gridTemplateColumns: '80px 1.5fr 1.2fr 1fr 1fr 120px 240px', alignItems: 'center' }}>
+              <div key={loan.idPrestamo} className="inventory-table-row inventory-grid" style={{ gridTemplateColumns: '80px 1.5fr 1.2fr 1fr 1fr 1fr 120px 240px', alignItems: 'center' }}>
                 <span style={{ fontWeight: '600', color: '#64748b' }}>#{String(loan.idPrestamo).padStart(3, '0')}</span>
                 <span style={{ fontSize: '0.85rem', lineHeight: '1.4' }}>{loan.articulos}</span>
                 <span style={{ fontWeight: '500' }}>{loan.nombreUsuario}</span>
                 <span>{formatDate(loan.fechaSalida)}</span>
                 <span>{formatDate(loan.fechaPrevista)}</span>
+                <span>{formatDate(loan.fechaDevolucionReal)}</span>
                 <span>
                   <span className={`dashboard-status-chip ${getStatusClass(loan.estado)}`}>
                     {loan.estado}
                   </span>
                 </span>
-                <span className="inventory-actions" style={{ display: 'grid', gridTemplateColumns: '120px auto', gap: '8px', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {loan.estado === 'Pendiente' && (
-                      <>
-                        <button
-                          className="btn btn-xs"
-                          style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#22c55e', color: 'white', borderRadius: '8px', fontWeight: '600' }}
-                          onClick={() => handleApproveClick(loan)}
-                        >
-                          <Check size={14} /> Aprobar
-                        </button>
-                        <button
-                          className="btn btn-xs"
-                          style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#ef4444', color: 'white', borderRadius: '8px', fontWeight: '600' }}
-                          onClick={() => handleRejectClick(loan)}
-                        >
-                          <X size={14} /> Rechazar
-                        </button>
-                      </>
-                    )}
-                    {(loan.estado === 'Activo' || loan.estado === 'Vencido') && (
-                      <button
-                        className="btn btn-xs"
-                        style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#f97316', color: 'white', borderRadius: '8px', fontWeight: '600' }}
-                        onClick={() => handleFinalizeClick(loan)}
-                      >
-                        <Undo2 size={14} /> Finalizar
+                <span className="inventory-actions">
+                  {loan.estado === 'Pendiente' && (
+                    <>
+                      <button className="inventory-icon-button" style={{ background: '#22c55e' }} title="Aprobar préstamo" aria-label="Aprobar préstamo" onClick={() => handleApproveClick(loan)}>
+                        <Check size={16} />
                       </button>
-                    )}
-                    {loan.estado === 'Vencido' && (
-                      <button
-                        className="btn btn-xs"
-                        style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#ca8a04', color: 'white', borderRadius: '8px', fontWeight: '600' }}
-                      >
-                        <Bell size={14} /> Recordar
+                      <button className="inventory-icon-button inventory-icon-button-delete" title="Rechazar préstamo" aria-label="Rechazar préstamo" onClick={() => handleRejectClick(loan)}>
+                        <X size={16} />
                       </button>
-                    )}
-                    {loan.estado === 'Finalizado' && (
-                      <div style={{ height: '0px' }}></div>
-                    )}
-                    {loan.estado === 'Activo' && (
-                      <button
-                        className="btn btn-xs"
-                        style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#475569', color: 'white', borderRadius: '8px', fontWeight: '600' }}
-                        onClick={() => handleViewDetail(loan)}
-                      >
-                        <Eye size={14} /> Ver
-                      </button>
-                    )}
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {(loan.estado === 'Pendiente' || loan.estado === 'Vencido' || loan.estado === 'Finalizado') && (
-                      <button
-                        className="btn btn-xs"
-                        style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#475569', color: 'white', borderRadius: '8px', fontWeight: '600' }}
-                        onClick={() => handleViewDetail(loan)}
-                      >
-                        <Eye size={14} /> Ver
-                      </button>
-                    )}
-                  </div>
+                    </>
+                  )}
+                  {(loan.estado === 'Activo' || loan.estado === 'Vencido') && (
+                    <button className="inventory-icon-button" style={{ background: '#f97316' }} title="Finalizar préstamo" aria-label="Finalizar préstamo" onClick={() => handleFinalizeClick(loan)}>
+                      <Undo2 size={16} />
+                    </button>
+                  )}
+                  {loan.estado === 'Vencido' && (
+                    <button className="inventory-icon-button" style={{ background: '#ca8a04' }} title="Enviar recordatorio" aria-label="Enviar recordatorio" onClick={() => handleSendReminder(loan)}>
+                      <Bell size={16} />
+                    </button>
+                  )}
+                  <button className="inventory-icon-button inventory-icon-button-view" title="Ver detalles" aria-label="Ver detalles" onClick={() => handleViewDetail(loan)}>
+                    <Eye size={16} />
+                  </button>
                 </span>
               </div>
             ))
@@ -412,6 +462,10 @@ function LoansPage() {
               <div>
                 <label style={{ fontWeight: '700', color: '#64748b', fontSize: '0.85rem', display: 'block', marginBottom: '4px' }}>Fecha Prevista</label>
                 <p style={{ color: '#1e293b' }}>{formatDate(selectedLoan.fechaPrevista)}</p>
+              </div>
+              <div>
+                <label style={{ fontWeight: '700', color: '#64748b', fontSize: '0.85rem', display: 'block', marginBottom: '4px' }}>Fecha Dev. Real</label>
+                <p style={{ color: '#1e293b' }}>{formatDate(selectedLoan.fechaDevolucionReal)}</p>
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={{ fontWeight: '700', color: '#64748b', fontSize: '0.85rem', display: 'block', marginBottom: '4px' }}>Artículos / Equipos</label>
@@ -613,6 +667,18 @@ function LoansPage() {
         </section>
       </div>
     )}
+
+<CreateLoanModal
+  showCreateModal={showCreateModal}
+  createSubmitting={createSubmitting}
+  createError={createError}
+  users={users}
+  availableArticles={availableArticles}
+  createForm={createForm}
+  setCreateForm={setCreateForm}
+  onClose={() => !createSubmitting && setShowCreateModal(false)}
+  onSubmit={handleCreateSubmit}
+/>
   </>
   )
 }

@@ -269,6 +269,7 @@ namespace SistemaInventario.Infrastructure.Repositories
                                        NombreUsuario = u.Nombre,
                                        FechaSalida = p.FechaSalida,
                                        FechaPrevista = p.FechaPrevista,
+                                       FechaDevolucionReal = p.FechaDevolucionReal,
                                        Estado = p.Estado.ToString()
                                    }).ToListAsync();
 
@@ -290,6 +291,7 @@ namespace SistemaInventario.Infrastructure.Repositories
                                        NombreUsuario = u.Nombre,
                                        FechaSalida = p.FechaSalida,
                                        FechaPrevista = p.FechaPrevista,
+                                       FechaDevolucionReal = p.FechaDevolucionReal,
                                        Estado = p.Estado.ToString()
                                    }).ToListAsync();
 

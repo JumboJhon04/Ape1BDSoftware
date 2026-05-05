@@ -14,6 +14,11 @@ import {
   Wrench,
 } from 'lucide-react'
 
+/**
+ * Control de acceso por rol (front): cada `roles` limita qué entradas aparecen en el menú y qué
+ * <Route> se registra en AppRouter. Rutas no listadas redirigen al inicio del rol.
+ * La seguridad real sigue en el API (JWT + [Authorize(Roles = ...)]); sin permiso, las llamadas devuelven 403.
+ */
 export const appRoutes = [
   {
     path: '/dashboard',
@@ -62,7 +67,7 @@ export const appRoutes = [
     component: ReportsPage,
     icon: ShieldCheck,
     description: 'Reportes, trazabilidad y bitacora de cambios.',
-    roles: ['administrador'],
+    roles: ['administrador', 'docente'],
   },
   {
     path: '/usuarios',

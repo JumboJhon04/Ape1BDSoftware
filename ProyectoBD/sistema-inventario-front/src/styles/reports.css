@@ -1,0 +1,360 @@
+/* ── Informes y auditoría ───────────────────────────────────────── */
+
+.reports-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.reports-filters-card {
+  background: #f1f5f9;
+  padding: 18px 20px;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.reports-filters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px 14px;
+}
+
+.reports-filter-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.reports-filter-input,
+.reports-filter-select {
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  font-size: 0.9rem;
+  background: #fff;
+}
+
+.reports-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.reports-section-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.reports-section-heading h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.reports-section-heading p {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #64748b;
+}
+
+.reports-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  gap: 16px;
+}
+
+.reports-chart-card {
+  background: #fff;
+  border: 1px solid #d9dde6;
+  border-radius: 14px;
+  padding: 16px 14px 12px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+}
+
+.reports-chart-card h3 {
+  margin: 0 0 4px;
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.reports-chart-card > p.reports-chart-sub {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.reports-chart-body {
+  flex: 1;
+  min-height: 260px;
+}
+
+.reports-chart-empty {
+  margin: 0;
+  padding: 24px 12px;
+  text-align: center;
+  font-size: 0.88rem;
+  color: #64748b;
+}
+
+.reports-vencidos-card {
+  background: #fff;
+  border: 1px solid #fecaca;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 8px 22px rgba(185, 28, 28, 0.06);
+}
+
+.reports-vencidos-card h3 {
+  margin: 0 0 6px;
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: #991b1b;
+}
+
+.reports-vencidos-card > p {
+  margin: 0 0 12px;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.reports-mini-table-wrap {
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+}
+
+.reports-mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.reports-mini-table th,
+.reports-mini-table td {
+  padding: 9px 12px;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.reports-mini-table th {
+  background: #fef2f2;
+  font-weight: 700;
+  color: #7f1d1d;
+  white-space: nowrap;
+}
+
+.reports-mini-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.reports-audit-card {
+  border: 1px solid #d9dde6;
+  background: #fff;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.reports-audit-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fafbfc;
+}
+
+.reports-audit-toolbar h3 {
+  margin: 0;
+  font-size: 1.08rem;
+  font-weight: 600;
+  color: #2e3441;
+}
+
+.reports-audit-toolbar p {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: #687083;
+}
+
+.reports-audit-pagination {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.reports-audit-pagination span {
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.reports-audit-table-wrap {
+  overflow-x: auto;
+  width: 100%;
+}
+
+.reports-audit-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  color: #303542;
+}
+
+.reports-audit-table thead th {
+  text-align: left;
+  padding: 12px 14px;
+  background: #e7e9ef;
+  border-bottom: 1px solid #cfd5df;
+  font-weight: 800;
+  color: #2f3440;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.reports-audit-table tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #d7dce5;
+  vertical-align: top;
+  line-height: 1.4;
+}
+
+.reports-audit-table tbody tr {
+  transition: background-color 0.15s ease;
+  cursor: pointer;
+}
+
+.reports-audit-table tbody tr:hover {
+  background: #f7f9fc;
+}
+
+.reports-audit-table tbody tr:focus-within {
+  outline: none;
+}
+
+.reports-col-id {
+  width: 1%;
+  white-space: nowrap;
+  font-weight: 600;
+  color: #475569;
+}
+
+.reports-col-accion {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.reports-col-fecha {
+  width: 1%;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.84rem;
+  color: #334155;
+}
+
+.reports-col-usuario {
+  min-width: 140px;
+  max-width: 220px;
+  word-break: break-word;
+}
+
+.reports-col-tabla {
+  min-width: 220px;
+  max-width: 380px;
+  word-break: break-word;
+  font-weight: 600;
+  color: #0f172a;
+  letter-spacing: 0.01em;
+}
+
+.reports-col-actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.reports-accion-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.reports-accion-insert {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.reports-accion-update {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.reports-accion-delete {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.reports-accion-default {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.reports-modal-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: 18px;
+}
+
+@media (max-width: 720px) {
+  .reports-modal-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.reports-modal-field {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 11px 12px;
+  font-size: 0.9rem;
+}
+
+.reports-modal-detalles {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 14px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  max-height: 300px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.45;
+}
+
+.recharts-default-tooltip {
+  border-radius: 8px !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08) !important;
+}

@@ -11,6 +11,7 @@ import {
   getUbicaciones,
   linkArticuloImage,
   updateArticulo,
+  registrarMovimiento,
 } from '@/features/inventory/services/inventory.service'
 import { getUsers } from '@/features/users/services/users.service'
 import { API_BASE_URL } from '@/core/config/env'
@@ -51,6 +52,8 @@ function InventoryDetailPage() {
     observacionesFisicas: '',
     idCategoria: '',
     idUbicacion: '',
+    idResponsable: '',
+    motivoMovimiento: '',
   })
   const [editSubmitting, setEditSubmitting] = useState(false)
   const [editError, setEditError] = useState('')
@@ -171,6 +174,7 @@ function InventoryDetailPage() {
       idCategoria: (articulo.idCategoria ?? articulo.IdCategoria) ? String(articulo.idCategoria ?? articulo.IdCategoria) : '',
       idUbicacion: (articulo.idUbicacion ?? articulo.IdUbicacion) ? String(articulo.idUbicacion ?? articulo.IdUbicacion) : '',
       idResponsable: (articulo.idResponsable ?? articulo.IdResponsable) ? String(articulo.idResponsable ?? articulo.IdResponsable) : '',
+      motivoMovimiento: '',
     })
     setEditError('')
     setEditSuccess('')
@@ -192,16 +196,36 @@ function InventoryDetailPage() {
     setEditForm((prev) => ({ ...prev, [name]: value }))
   }
 
+  const ubicacionCambiaEnEdicion = useMemo(() => {
+    if (!articulo) return false
+    if (!editForm.idUbicacion) return false
+    const prevRaw = articulo.idUbicacion ?? articulo.IdUbicacion
+    const prevStr = prevRaw != null && prevRaw !== '' ? String(prevRaw) : ''
+    const nextStr = String(editForm.idUbicacion)
+    return nextStr !== '' && prevStr !== nextStr
+  }, [articulo, editForm.idUbicacion])
+
   const handleEditSubmit = async (event) => {
     event.preventDefault()
     if (!editForm.codigo || !editForm.nombre || !editForm.idCategoria || !editForm.idUbicacion) {
       setEditError('Completa los campos obligatorios: Código, Nombre, Categoría y Ubicación.')
       return
     }
+    if (ubicacionCambiaEnEdicion && !editForm.motivoMovimiento?.trim()) {
+      setEditError('Indica el motivo del cambio de ubicación (se registrará en el historial de movimientos).')
+      return
+    }
     setEditSubmitting(true)
     setEditError('')
     setEditSuccess('')
     try {
+      if (ubicacionCambiaEnEdicion) {
+        await registrarMovimiento({
+          idArticulo: articuloId,
+          idUbicacionDestino: Number(editForm.idUbicacion),
+          motivo: editForm.motivoMovimiento.trim(),
+        })
+      }
       await updateArticulo(articuloId, {
         codigo: editForm.codigo.trim(),
         nombre: editForm.nombre.trim(),
@@ -432,6 +456,19 @@ function InventoryDetailPage() {
                     ))}
                   </select>
                 </label>
+
+                {ubicacionCambiaEnEdicion ? (
+                  <label className="articulo-form-span-2">
+                    Motivo del cambio de ubicación *
+                    <textarea
+                      name="motivoMovimiento"
+                      value={editForm.motivoMovimiento}
+                      onChange={handleEditChange}
+                      placeholder="Ej: Reubicación por remodelación del laboratorio, traslado temporal, etc."
+                      rows={2}
+                    />
+                  </label>
+                ) : null}
 
                 <label>
                   Responsable
