@@ -78,7 +78,7 @@ function AdminDashboardPage() {
         return false
       }
 
-      return estado !== 'finalizado' && fechaPrevista < hoy
+      return estado !== 'finalizado' && estado !== 'rechazado' && estado !== 'cancelado' && fechaPrevista < hoy
     })
 
     const vencidos = prestamosVencidos.reduce((acc, item) => {

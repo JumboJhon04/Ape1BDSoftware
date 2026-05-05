@@ -63,3 +63,12 @@ export const rejectLoan = async (id) => {
   const response = await api.put(`/Prestamos/rechazar/${id}`)
   return response.data
 }
+
+/**
+ * Registra una solicitud de préstamo por parte de un usuario (Docente/Estudiante)
+ * @param {object} payload - DTO de creación de préstamo
+ */
+export const requestLoan = async (payload) => {
+  const response = await api.post('/Prestamos', payload)
+  return response.data
+}
