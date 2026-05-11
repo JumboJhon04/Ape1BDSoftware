@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SistemaInventario.API.Extensions;
 using SistemaInventario.Application.DTOs;
@@ -40,6 +40,10 @@ public class NotificacionesController : ControllerBase
     [HttpPut("marcar-enviada/{id}")]
     [Authorize(Roles = "Administrador,Docente")]
     public async Task<IActionResult> Put(int id) => Ok(await _repository.MarcarComoEnviadaAsync(id));
+
+    [HttpPut("marcar-leida/{id}")]
+    [Authorize(Roles = "Administrador,Docente")]
+    public async Task<IActionResult> MarcarLeida(int id) => Ok(await _repository.MarcarComoLeidaAsync(id));
 
     [HttpPost("prestamo/{idPrestamo}/recordar")]
     [Authorize(Roles = "Administrador,Docente")]

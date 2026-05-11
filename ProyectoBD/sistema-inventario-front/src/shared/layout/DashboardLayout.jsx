@@ -5,7 +5,7 @@ import { appRoutes } from '@/app/router/routes'
 import { getRoutesByRole, toRoleLabel } from '@/core/auth/roles'
 import useAuth from '@/core/auth/useAuth'
 import { getSidebarNavEntries } from '@/navigation/sidebarMenu'
-import { getNotifications } from '@/features/notifications/services/notifications.service'
+import { getNotifications, markAsRead } from '@/features/notifications/services/notifications.service'
 
 function DashboardLayout() {
   const location = useLocation()
@@ -30,6 +30,13 @@ function DashboardLayout() {
   useEffect(() => {
     let isMounted = true
 
+    if (currentRole === 'estudiante') {
+      setNotifications([])
+      return () => {
+        isMounted = false
+      }
+    }
+
     const loadNotifications = async () => {
       try {
         const data = await getNotifications()
@@ -48,10 +55,24 @@ function DashboardLayout() {
       isMounted = false
       window.clearInterval(intervalId)
     }
-  }, [])
+  }, [currentRole])
+
+  const handleMarkAsRead = async (id) => {
+    try {
+      await markAsRead(id)
+      setNotifications((prev) =>
+        prev.map((n) => (n.idNotificacion === id ? { ...n, estadoEnvio: 'Leído' } : n))
+      )
+    } catch (error) {
+      console.error('Error marking notification as read:', error)
+    }
+  }
 
   const unreadCount = useMemo(() => {
-    return notifications.filter((item) => String(item.estadoEnvio ?? '').toLowerCase() === 'pendiente').length
+    return notifications.filter((item) => {
+      const state = String(item.estadoEnvio ?? '').toLowerCase()
+      return state !== 'leído' && state !== 'leido'
+    }).length
   }, [notifications])
 
   return (
@@ -79,8 +100,8 @@ function DashboardLayout() {
               onClick={() => setNotificationsOpen((prev) => !prev)}
             >
               <Bell size={16} aria-hidden="true" />
-              {notifications.length > 0 ? (
-                <span className="header-notification-badge">{unreadCount > 0 ? unreadCount : notifications.length}</span>
+              {unreadCount > 0 ? (
+                <span className="header-notification-badge">{unreadCount}</span>
               ) : null}
             </button>
 
@@ -98,11 +119,20 @@ function DashboardLayout() {
                       <article key={item.idNotificacion} className="header-notification-item">
                         <div className="header-notification-item-top">
                           <span className="header-notification-loan">Prestamo #{String(item.idPrestamo).padStart(3, '0')}</span>
-                          <span className={`header-notification-status ${String(item.estadoEnvio ?? '').toLowerCase() === 'enviado' ? 'header-notification-status-sent' : 'header-notification-status-pending'}`}>
+                          <span className={`header-notification-status ${String(item.estadoEnvio ?? '').toLowerCase() === 'enviado' ? 'header-notification-status-sent' : String(item.estadoEnvio ?? '').toLowerCase() === 'leído' || String(item.estadoEnvio ?? '').toLowerCase() === 'leido' ? 'header-notification-status-read' : 'header-notification-status-pending'}`}>
                             {item.estadoEnvio ?? 'Pendiente'}
                           </span>
                         </div>
                         <p>{item.mensaje}</p>
+                        {String(item.estadoEnvio ?? '').toLowerCase() !== 'leído' && String(item.estadoEnvio ?? '').toLowerCase() !== 'leido' ? (
+                          <button
+                            className="dashboard-action-button"
+                            style={{ marginTop: '8px', fontSize: '12px', padding: '4px 8px' }}
+                            onClick={() => handleMarkAsRead(item.idNotificacion)}
+                          >
+                            Marcar como vista
+                          </button>
+                        ) : null}
                       </article>
                     ))
                   )}

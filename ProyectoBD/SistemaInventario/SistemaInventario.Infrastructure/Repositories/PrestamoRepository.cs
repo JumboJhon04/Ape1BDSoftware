@@ -307,6 +307,31 @@ namespace SistemaInventario.Infrastructure.Repositories
             return prestamos;
         }
 
+        public async Task<IEnumerable<PrestamoDTO>> ObtenerPrestamosPorUsuarioAsync(int idUsuario)
+        {
+            await MarcarVencidosAsync();
+
+            var prestamos = await (from p in _context.Prestamos
+                                   join u in _context.Usuarios on p.IdUsuario equals u.IdUsuario
+                                   join admin in _context.Usuarios on p.IdAdminAutoriza equals admin.IdUsuario into adminJoin
+                                   from admin in adminJoin.DefaultIfEmpty()
+                                   where p.IdUsuario == idUsuario
+                                   select new PrestamoDTO
+                                   {
+                                       IdPrestamo = p.IdPrestamo,
+                                       NombreUsuario = u.Nombre,
+                                       FechaSalida = p.FechaSalida,
+                                       FechaPrevista = p.FechaPrevista,
+                                       FechaDevolucionReal = p.FechaDevolucionReal,
+                                       Estado = p.Estado.ToString(),
+                                       IdAdminAutoriza = p.IdAdminAutoriza,
+                                       NombreAdminAutoriza = admin.Nombre
+                                   }).ToListAsync();
+
+            await CompletarResumenArticulosAsync(prestamos as List<PrestamoDTO>);
+            return prestamos;
+        }
+
         // ─────────────────────────────────────────────────────────────────────
         // FINALIZAR  (acepta Activo o Vencido → pasa a Finalizado)
         // ─────────────────────────────────────────────────────────────────────

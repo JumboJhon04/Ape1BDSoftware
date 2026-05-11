@@ -17,6 +17,14 @@ export const getActiveLoans = async () => {
 }
 
 /**
+ * Obtiene los préstamos del usuario autenticado (mis préstamos)
+ */
+export const getMyLoans = async () => {
+  const response = await api.get('/Prestamos/mis')
+  return response.data
+}
+
+/**
  * Aprueba una solicitud de préstamo pendiente
  * @param {number} id - ID del préstamo
  */

@@ -13,9 +13,46 @@ import {
   updateArticulo,
   registrarMovimiento,
 } from '@/features/inventory/services/inventory.service'
+import { getAllLoans } from '@/features/loans/services/loans.service'
 import { getUsers } from '@/features/users/services/users.service'
 import { API_BASE_URL } from '@/core/config/env'
 import { uploadImageToCloudinary } from '@/features/inventory/services/cloudinary.service'
+
+function normalizeText(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+}
+
+function pick(obj, ...keys) {
+  if (!obj || typeof obj !== 'object') return undefined
+  for (const key of keys) {
+    if (obj[key] != null && obj[key] !== '') return obj[key]
+  }
+  return undefined
+}
+
+function sameId(a, b) {
+  if (a == null || b == null) return false
+  return String(a) === String(b)
+}
+
+function getLoanArticleIds(loan) {
+  const ids = pick(loan, 'idArticulos', 'IdArticulos', 'articulosIds', 'ArticulosIds')
+  if (Array.isArray(ids)) return ids
+  if (ids == null) return []
+  return String(ids)
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+}
+
+function isLoanOpen(loan) {
+  const estado = normalizeText(pick(loan, 'estado', 'Estado'))
+  return estado === 'prestado' || estado === 'activo' || estado === 'vencido'
+}
 
 function resolveImageUrl(urlImagen) {
   if (!urlImagen) return ''
@@ -39,6 +76,7 @@ function InventoryDetailPage() {
   const [departamentos, setDepartamentos] = useState([])
   const [movimientos, setMovimientos] = useState([])
   const [usuarios, setUsuarios] = useState([])
+  const [prestamos, setPrestamos] = useState([])
 
   // Edit modal
   const [showEditModal, setShowEditModal] = useState(false)
@@ -73,7 +111,7 @@ function InventoryDetailPage() {
     setLoading(true)
     setErrorMessage('')
     try {
-      const [catalogo, imagenesRes, categoriasRes, ubicacionesRes, departamentosRes, movimientosRes, usuariosRes] =
+      const [catalogo, imagenesRes, categoriasRes, ubicacionesRes, departamentosRes, movimientosRes, usuariosRes, prestamosRes] =
         await Promise.all([
           getInventoryCatalog(),
           getArticuloImages(articuloId),
@@ -82,6 +120,7 @@ function InventoryDetailPage() {
           getDepartamentos(),
           getMovimientoHistorial(),
           getUsers(),
+          getAllLoans(),
         ])
       const found = catalogo.find((item) => item.idArticulo === articuloId) ?? null
       if (!found) { setErrorMessage('No se encontró el artículo solicitado.'); return }
@@ -92,6 +131,7 @@ function InventoryDetailPage() {
       setDepartamentos(departamentosRes)
       setMovimientos(movimientosRes)
       setUsuarios(usuariosRes)
+      setPrestamos(Array.isArray(prestamosRes) ? prestamosRes : [])
     } catch (error) {
       setErrorMessage(error.response?.data?.message ?? 'No se pudo cargar el detalle del artículo.')
     } finally {
@@ -110,7 +150,7 @@ function InventoryDetailPage() {
       setLoading(true)
       setErrorMessage('')
       try {
-        const [catalogo, imagenesRes, categoriasRes, ubicacionesRes, departamentosRes, movimientosRes, usuariosRes] =
+        const [catalogo, imagenesRes, categoriasRes, ubicacionesRes, departamentosRes, movimientosRes, usuariosRes, prestamosRes] =
           await Promise.all([
             getInventoryCatalog(),
             getArticuloImages(articuloId),
@@ -119,6 +159,7 @@ function InventoryDetailPage() {
             getDepartamentos(),
             getMovimientoHistorial(),
             getUsers(),
+            getAllLoans(),
           ])
         if (!isMounted) return
         const found = catalogo.find((item) => item.idArticulo === articuloId) ?? null
@@ -130,6 +171,7 @@ function InventoryDetailPage() {
         setDepartamentos(departamentosRes)
         setMovimientos(movimientosRes)
         setUsuarios(usuariosRes)
+        setPrestamos(Array.isArray(prestamosRes) ? prestamosRes : [])
       } catch (error) {
         if (!isMounted) return
         setErrorMessage(error.response?.data?.message ?? 'No se pudo cargar el detalle del artículo.')
@@ -157,6 +199,22 @@ function InventoryDetailPage() {
   const historialArticulo = useMemo(() =>
     movimientos.filter((item) => (item.idArticulo ?? item.IdArticulo) === articuloId),
     [movimientos, articuloId])
+
+  const prestamoActual = useMemo(() => {
+    if (!articulo) return null
+
+    return prestamos.find((loan) => {
+      if (!isLoanOpen(loan)) return false
+
+      const articleIds = getLoanArticleIds(loan)
+      return articleIds.some((id) => sameId(id, articuloId))
+    }) ?? null
+  }, [prestamos, articulo, articuloId])
+
+  const prestatarioActual = useMemo(() => {
+    if (!prestamoActual) return '-'
+    return pick(prestamoActual, 'nombreUsuario', 'NombreUsuario', 'usuario', 'Usuario') ?? '-'
+  }, [prestamoActual])
 
   const selectedImageUrl = resolveImageUrl(imagenes[0]?.urlImagen ?? imagenes[0]?.UrlImagen ?? '')
 
@@ -332,6 +390,12 @@ function InventoryDetailPage() {
               <dl className="inventory-detail-meta-list">
                 <div><dt>Estado</dt><dd>{articulo.estado || '-'}</dd></div>
                 <div><dt>Responsable</dt><dd>{articulo.responsable || '-'}</dd></div>
+                {normalizeText(articulo.estado) === 'prestado' || normalizeText(articulo.estado) === 'vencido' ? (
+                  <div>
+                    <dt>Prestado a</dt>
+                    <dd>{prestamoActual ? prestatarioActual : 'No se pudo determinar'}</dd>
+                  </div>
+                ) : null}
                 <div><dt>Código Institucional</dt><dd>{articulo.codigoInstitucional || '-'}</dd></div>
                 <div><dt>Número de Serie</dt><dd>{articulo.numeroSerie || '-'}</dd></div>
                 <div><dt>Marca</dt><dd>{articulo.marca || '-'}</dd></div>
@@ -350,6 +414,9 @@ function InventoryDetailPage() {
                   <div><dt>Ubicación</dt><dd>{ubicacionNombre}</dd></div>
                   <div><dt>Departamento</dt><dd>{departamentoNombre}</dd></div>
                   <div><dt>Responsable</dt><dd>{articulo.responsable || '-'}</dd></div>
+                  {normalizeText(articulo.estado) === 'prestado' || normalizeText(articulo.estado) === 'vencido' ? (
+                    <div><dt>Prestado a</dt><dd>{prestamoActual ? prestatarioActual : 'No se pudo determinar'}</dd></div>
+                  ) : null}
                 </dl>
               </div>
 
@@ -374,19 +441,6 @@ function InventoryDetailPage() {
                 ) : (
                   <p className="inventory-empty-note">No hay historial de movimientos registrado para este artículo.</p>
                 )}
-              </div>
-
-              <div className="inventory-detail-panel">
-                <div className="inventory-detail-panel-header">
-                  <h3>Trazabilidad</h3>
-                  <span>Resumen técnico</span>
-                </div>
-                <ul className="inventory-trace-list inventory-trace-list-detail">
-                  <li><strong>Descripción:</strong> {articulo.descripcionTecnica || '-'}</li>
-                  <li><strong>Ubicación actual:</strong> {ubicacionNombre}</li>
-                  <li><strong>Departamento:</strong> {departamentoNombre}</li>
-                  <li><strong>Imagen vinculada:</strong> {selectedImageUrl ? 'Sí' : 'No'}</li>
-                </ul>
               </div>
             </section>
           </div>

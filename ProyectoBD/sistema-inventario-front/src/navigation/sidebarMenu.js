@@ -28,12 +28,11 @@ export function getSidebarNavEntries(role, allowedRoutes) {
 
     pushPath(entries, '/mis-prestamos', 'Mis préstamos', (loc) => loc.pathname.startsWith('/mis-prestamos'))
 
-    if (paths.has('/inventario')) {
-      const r = routeByPath['/inventario']
+    if (paths.has('/equipos-a-mi-cargo')) {
+      const r = routeByPath['/equipos-a-mi-cargo']
       entries.push({
-        to: '/inventario?misEquipos=1',
-        match: (loc) =>
-          loc.pathname.startsWith('/inventario') && loc.search.includes('misEquipos=1'),
+        to: '/equipos-a-mi-cargo',
+        match: (loc) => loc.pathname.startsWith('/equipos-a-mi-cargo'),
         title: 'Equipos a mi cargo',
         icon: r.icon,
       })
@@ -45,8 +44,7 @@ export function getSidebarNavEntries(role, allowedRoutes) {
   if (role === USER_ROLES.ESTUDIANTE) {
     const entries = []
 
-    pushPath(entries, '/dashboard', 'Panel de Control', (loc) => loc.pathname === '/dashboard')
-
+    pushPath(entries, '/dashboard', 'Mi Panel', (loc) => loc.pathname === '/dashboard')
     if (paths.has('/inventario')) {
       const r = routeByPath['/inventario']
       entries.push({
@@ -59,6 +57,8 @@ export function getSidebarNavEntries(role, allowedRoutes) {
     }
 
     pushPath(entries, '/mis-prestamos', 'Mis préstamos', (loc) => loc.pathname.startsWith('/mis-prestamos'))
+
+    
 
     return entries
   }

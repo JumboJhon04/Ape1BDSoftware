@@ -1,4 +1,4 @@
-﻿using SistemaInventario.Application.DTOs;
+using SistemaInventario.Application.DTOs;
 
 namespace SistemaInventario.Application.Interfaces
 {
@@ -7,6 +7,7 @@ namespace SistemaInventario.Application.Interfaces
         Task<bool> CrearNotificacionAsync(NotificacionCreateDTO dto);
         Task<IEnumerable<object>> ObtenerPendientesAsync(int idUsuario);
         Task<bool> MarcarComoEnviadaAsync(int idNotificacion);
+        Task<bool> MarcarComoLeidaAsync(int idNotificacion);
         Task<int> EnviarPendientesAsync();
         Task<int> EnviarPendientesPorPrestamoAsync(int idPrestamo);
         // El "plus": Buscar préstamos vencidos para generar alertas automáticas

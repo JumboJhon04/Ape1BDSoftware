@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SistemaInventario.Application.DTOs;
@@ -106,6 +106,13 @@ namespace SistemaInventario.Infrastructure.Repositories
         public async Task<bool> MarcarComoEnviadaAsync(int idNotificacion)
         {
             var sql = "UPDATE NOTIFICACIONES SET ESTADO_ENVIO = 'Enviado' WHERE ID_NOTIFICACION = {0}";
+            await _context.Database.ExecuteSqlRawAsync(sql, idNotificacion);
+            return true;
+        }
+
+        public async Task<bool> MarcarComoLeidaAsync(int idNotificacion)
+        {
+            var sql = "UPDATE NOTIFICACIONES SET ESTADO_ENVIO = 'Leído' WHERE ID_NOTIFICACION = {0}";
             await _context.Database.ExecuteSqlRawAsync(sql, idNotificacion);
             return true;
         }

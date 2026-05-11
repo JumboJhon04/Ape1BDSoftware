@@ -940,6 +940,131 @@
   color: #64748b;
 }
 
+.docente-equipos-toolbar {
+  align-items: center;
+}
+
+.docente-equipos-toolbar h3 {
+  margin: 0;
+  font-size: 1.18rem;
+  color: #2e3441;
+}
+
+.docente-equipos-toolbar p {
+  margin: 4px 0 0;
+  color: #687083;
+  font-size: 0.88rem;
+}
+
+.docente-equipos-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr 1fr 0.9fr 1fr;
+  gap: 0;
+  align-items: center;
+}
+
+.docente-equipos-grid span {
+  min-width: 0;
+}
+
+.docente-equipos-article {
+  line-height: 1.35;
+}
+
+.docente-equipos-code {
+  font-weight: 500;
+}
+
+.docente-equipos-status-disponible {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border-color: #93c5fd;
+}
+
+.docente-equipos-status-prestado {
+  background: #fff7cd;
+  color: #8a5a00;
+  border-color: #f3d36a;
+}
+
+.docente-equipos-status-mantenimiento {
+  background: #ffedd5;
+  color: #b45309;
+  border-color: #fdba74;
+}
+
+.docente-equipos-status-baja {
+  background: #e5e7eb;
+  color: #4b5563;
+  border-color: #cbd5e1;
+}
+
+.docente-equipos-status-vencido {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fca5a5;
+}
+
+.docente-equipos-status-neutral {
+  background: #eff2f8;
+  color: #374154;
+  border-color: #d9dde6;
+}
+
+.docente-equipos-action-button {
+  min-height: 36px;
+  border-radius: 8px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #ea580c;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #fff;
+  background: #f97316;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.docente-equipos-action-button:hover {
+  background: #ea580c;
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.3);
+  transform: translateY(-1px);
+}
+
+.docente-equipos-action-button:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(249, 115, 22, 0.2);
+}
+
+.docente-equipos-action-empty {
+  color: #94a3b8;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.docente-equipos-empty-state {
+  border: 1px dashed #d7dce6;
+  background: #fff;
+  border-radius: 14px;
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #475569;
+}
+
+.docente-equipos-empty-state strong {
+  display: block;
+  color: #1f2937;
+}
+
+.docente-equipos-empty-state p {
+  margin: 3px 0 0;
+  color: #64748b;
+}
+
 /* ---------- Report Fallo Modal ---------- */
 .modal-overlay {
   position: fixed;
@@ -1658,6 +1783,45 @@
     grid-template-columns: 1fr;
     display: grid;
   }
+
+  .docente-equipos-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .docente-equipos-grid span {
+    border-right: 0;
+    padding: 6px 12px;
+  }
+
+  .docente-equipos-grid span:nth-child(1)::before {
+    content: 'Artículo: ';
+    font-weight: 700;
+  }
+
+  .docente-equipos-grid span:nth-child(2)::before {
+    content: 'Código institucional: ';
+    font-weight: 700;
+  }
+
+  .docente-equipos-grid span:nth-child(3)::before {
+    content: 'Número de Serie: ';
+    font-weight: 700;
+  }
+
+  .docente-equipos-grid span:nth-child(4)::before {
+    content: 'Ubicación: ';
+    font-weight: 700;
+  }
+
+  .docente-equipos-grid span:nth-child(5)::before {
+    content: 'Estado: ';
+    font-weight: 700;
+  }
+
+  .docente-equipos-grid span:nth-child(6)::before {
+    content: 'Acciones: ';
+    font-weight: 700;
+  }
 }
 
 @media (max-width: 780px) {
@@ -1703,6 +1867,16 @@
   .inventory-upload-actions {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .docente-equipos-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .docente-equipos-action-button {
+    width: 100%;
+    justify-content: center;
   }
 }
 

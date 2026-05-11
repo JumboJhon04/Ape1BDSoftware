@@ -258,7 +258,7 @@ namespace SistemaInventario.Infrastructure.Repositories
                 sql,
                 mantenimiento.IdArticulo,
                 mantenimiento.Tipo,
-                mantenimiento.ProveedorTecnico ?? string.Empty,
+                mantenimiento.ProveedorTecnico ?? string.Empty, 
                 mantenimiento.Descripcion ?? string.Empty,
                 mantenimiento.FechaInicio);
         }

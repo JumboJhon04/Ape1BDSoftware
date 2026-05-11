@@ -118,6 +118,60 @@
   box-shadow: 0 8px 22px rgba(185, 28, 28, 0.06);
 }
 
+.reports-vencidos-chart-card {
+  border: 1px solid #d9dde6;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+  min-height: 320px;
+}
+
+.reports-vencidos-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.reports-vencidos-chart-shell {
+  padding: 6px 4px 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff, #fff9f9);
+}
+
+.reports-vencidos-footer-note {
+  display: flex;
+  justify-content: flex-end;
+  font-size: 0.78rem;
+  color: #7f1d1d;
+  font-weight: 600;
+}
+
+.reports-vencidos-summary {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.reports-vencidos-summary strong {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.reports-vencidos-summary span {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.reports-vencidos-empty-strong {
+  color: #059669;
+  font-weight: 600;
+}
+
 .reports-vencidos-card h3 {
   margin: 0 0 6px;
   font-size: 0.98rem;

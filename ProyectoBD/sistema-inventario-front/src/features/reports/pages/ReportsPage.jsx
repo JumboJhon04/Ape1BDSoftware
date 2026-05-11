@@ -24,11 +24,16 @@ import {
   getResumenGeneral,
   getTopArticulosMovidos,
 } from '../services/reports.service'
+import useAuth from '@/core/auth/useAuth'
+import { getDashboardData } from '@/features/dashboard/services/dashboard.service'
 import jsPDF from 'jspdf'
 
 const AUDIT_PAGE_SIZE = 12
 
-const CHART_COLORS = ['#2563eb', '#0d9488', '#d97706', '#dc2626', '#7c3aed', '#059669', '#db2777', '#64748b', '#ea580c', '#4f46e5']
+const CHART_COLORS = [
+  '#2563eb', '#0d9488', '#d97706', '#dc2626', '#7c3aed',
+  '#059669', '#db2777', '#64748b', '#ea580c', '#4f46e5',
+]
 
 function pick(obj, ...keys) {
   if (!obj || typeof obj !== 'object') return undefined
@@ -54,7 +59,48 @@ function accionBadgeClass(accion) {
   return 'reports-accion-default'
 }
 
+function normalizeStatus(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+}
+
+function countPendingLoans(loans) {
+  const seenIds = new Set()
+
+  return (Array.isArray(loans) ? loans : []).reduce((acc, loan) => {
+    const loanId = pick(loan, 'idPrestamo', 'IdPrestamo', 'id', 'Id')
+    if (loanId != null) {
+      const normalizedId = String(loanId)
+      if (seenIds.has(normalizedId)) return acc
+      seenIds.add(normalizedId)
+    }
+
+    const estado = normalizeStatus(pick(loan, 'estado', 'Estado'))
+    const isPendingState = estado === 'vencido'
+    return acc + (isPendingState ? 1 : 0)
+  }, 0)
+}
+
+function getUniqueVencidos(loans) {
+  const seenIds = new Set()
+  return (Array.isArray(loans) ? loans : []).filter((loan) => {
+    const loanId = pick(loan, 'idPrestamo', 'IdPrestamo', 'id', 'Id')
+    if (loanId != null) {
+      const normalizedId = String(loanId)
+      if (seenIds.has(normalizedId)) return false
+      seenIds.add(normalizedId)
+    }
+
+    return normalizeStatus(pick(loan, 'estado', 'Estado')) === 'vencido'
+  })
+}
+
 function ReportsPage() {
+  const { role } = useAuth()
+
   const [auditLog, setAuditLog] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -66,6 +112,7 @@ function ReportsPage() {
   const [prestamosVencidos, setPrestamosVencidos] = useState([])
   const [mantenimientosEstado, setMantenimientosEstado] = useState([])
   const [topArticulos, setTopArticulos] = useState([])
+  const [dashboardPrestamos, setDashboardPrestamos] = useState([])
 
   const [chartsOk, setChartsOk] = useState({
     resumen: true,
@@ -114,6 +161,7 @@ function ReportsPage() {
         vencResult,
         mantResult,
         topResult,
+        dashboardResult,
       ] = await Promise.all([
         logPromise,
         safeFetch(() => getResumenGeneral()),
@@ -122,7 +170,8 @@ function ReportsPage() {
         safeFetch(() => getPrestamosPorEstado()),
         safeFetch(() => getPrestamosVencidos()),
         safeFetch(() => getMantenimientosPorEstado()),
-        safeFetch(() => getTopArticulosMovidos(8)),
+        safeFetch(() => getTopArticulosMovidos()),
+        safeFetch(() => getDashboardData(role)),
       ])
 
       setAuditLog(Array.isArray(logData) ? logData : [])
@@ -133,6 +182,9 @@ function ReportsPage() {
       setPrestamosVencidos(Array.isArray(vencResult.data) ? vencResult.data : [])
       setMantenimientosEstado(Array.isArray(mantResult.data) ? mantResult.data : [])
       setTopArticulos(Array.isArray(topResult.data) ? topResult.data : [])
+      setDashboardPrestamos(
+        Array.isArray(dashboardResult.data?.prestamos) ? dashboardResult.data.prestamos : [],
+      )
 
       setChartsOk({
         resumen: resumenResult.ok,
@@ -265,6 +317,55 @@ function ReportsPage() {
     }))
   }, [topArticulos])
 
+  const vencidosFromDashboard = useMemo(() => getUniqueVencidos(dashboardPrestamos), [dashboardPrestamos])
+
+  const prestamosPendientesCount = useMemo(() => {
+    const dashboardCount = countPendingLoans(dashboardPrestamos)
+    if (dashboardPrestamos.length > 0) return dashboardCount
+
+    const resumenPendientes = Number(pick(resumen, 'prestamosPendientes', 'PrestamosPendientes') ?? 0)
+    return Number.isNaN(resumenPendientes) ? 0 : resumenPendientes
+  }, [dashboardPrestamos, resumen])
+
+  const prestamosVencidosDisplay = useMemo(() => {
+    if (prestamosVencidos.length > 0) return getUniqueVencidos(prestamosVencidos)
+    return vencidosFromDashboard
+  }, [prestamosVencidos, vencidosFromDashboard])
+
+  const prestamosVencidosChartData = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    return prestamosVencidosDisplay
+      .map((row) => {
+        const fechaPrevistaRaw = pick(row, 'fechaPrevista', 'FechaPrevista')
+        const fechaPrevista = fechaPrevistaRaw ? new Date(fechaPrevistaRaw) : null
+        const diasRetrasoDirecto = Number(pick(row, 'diasRetraso', 'DiasRetraso') ?? 0)
+
+        let diasRetraso = Number.isNaN(diasRetrasoDirecto) || diasRetrasoDirecto <= 0 ? 0 : diasRetrasoDirecto
+        if (diasRetraso === 0 && fechaPrevista && !Number.isNaN(fechaPrevista.getTime())) {
+          const diffMs = today.getTime() - fechaPrevista.getTime()
+          diasRetraso = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)))
+        }
+
+        return {
+          id: pick(row, 'idPrestamo', 'IdPrestamo') ?? row.id ?? row.Id ?? row.usuario ?? `Vencido-${diasRetraso}`,
+          name:
+            pick(row, 'usuario', 'Usuario') ??
+            `Préstamo #${pick(row, 'idPrestamo', 'IdPrestamo') ?? row.id ?? row.Id ?? '—'}`,
+          salida: pick(row, 'fechaSalida', 'FechaSalida'),
+          prevista: fechaPrevistaRaw,
+          diasRetraso,
+        }
+      })
+      .sort((a, b) => b.diasRetraso - a.diasRetraso)
+  }, [prestamosVencidosDisplay])
+
+  const maxVencidoDays = useMemo(() => {
+    if (prestamosVencidosChartData.length === 0) return 0
+    return Math.max(...prestamosVencidosChartData.map((item) => item.diasRetraso), 1)
+  }, [prestamosVencidosChartData])
+
   const kpiCards = useMemo(() => {
     const total = Number(pick(resumen, 'totalArticulos', 'TotalArticulos') ?? 0)
     const disp = Number(pick(resumen, 'articulosDisponibles', 'ArticulosDisponibles') ?? 0)
@@ -291,9 +392,10 @@ function ReportsPage() {
         title: 'En préstamo',
         value: chartsOk.resumen ? pick(resumen, 'articulosPrestados', 'ArticulosPrestados') ?? 0 : '—',
         detail: 'Unidades fuera del almacén',
-        percent: chartsOk.resumen && total > 0
-          ? Math.min(100, Math.round(((Number(pick(resumen, 'articulosPrestados', 'ArticulosPrestados')) || 0) / total) * 100) + 20)
-          : 0,
+        percent:
+          chartsOk.resumen && total > 0
+            ? Math.min(100, Math.round(((Number(pick(resumen, 'articulosPrestados', 'ArticulosPrestados')) || 0) / total) * 100) + 20)
+            : 0,
         tone: 'info',
       },
       {
@@ -301,9 +403,10 @@ function ReportsPage() {
         title: 'En mantenimiento',
         value: chartsOk.resumen ? pick(resumen, 'articulosEnMantenimiento', 'ArticulosEnMantenimiento') ?? 0 : '—',
         detail: 'Bajo orden de trabajo',
-        percent: chartsOk.resumen && total > 0
-          ? Math.min(100, Math.round(((Number(pick(resumen, 'articulosEnMantenimiento', 'ArticulosEnMantenimiento')) || 0) / total) * 100) + 25)
-          : 0,
+        percent:
+          chartsOk.resumen && total > 0
+            ? Math.min(100, Math.round(((Number(pick(resumen, 'articulosEnMantenimiento', 'ArticulosEnMantenimiento')) || 0) / total) * 100) + 25)
+            : 0,
         tone: 'warning',
       },
       {
@@ -316,14 +419,14 @@ function ReportsPage() {
       },
       {
         key: 'p2',
-        title: 'Préstamos pendientes',
-        value: chartsOk.resumen ? pick(resumen, 'prestamosPendientes', 'PrestamosPendientes') ?? 0 : '—',
-        detail: 'Por aprobar o entregar',
+        title: 'Préstamos vencidos',
+        value: chartsOk.resumen ? prestamosPendientesCount : '—',
+        detail: 'Por aprobar, entregar o con atraso',
         percent: 40,
         tone: 'danger',
       },
     ]
-  }, [resumen, chartsOk.resumen])
+  }, [resumen, chartsOk.resumen, prestamosPendientesCount])
 
   const applyFilters = () => {
     setAuditPage(1)
@@ -552,7 +655,12 @@ function ReportsPage() {
             </div>
 
             <div className="reports-filter-actions">
-              <button type="button" className="btn btn-primary" onClick={applyFilters} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={applyFilters}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+              >
                 <Search size={16} aria-hidden="true" />
                 Aplicar filtros
               </button>
@@ -615,7 +723,7 @@ function ReportsPage() {
 
           <section>
             <div className="reports-section-heading">
-              <h2>Gráficos desde ReportesController</h2>
+              <h2>Gráficos del Sistema</h2>
               <p>Inventario por categoría y ubicación, préstamos, mantenimientos y artículos con más movimientos.</p>
             </div>
 
@@ -697,7 +805,14 @@ function ReportsPage() {
                     <ResponsiveContainer width="100%" height={280}>
                       <BarChart data={barPrestamos} margin={{ top: 8, right: 8, left: 4, bottom: 4 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                        <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={barPrestamos.length > 4 ? -18 : 0} textAnchor={barPrestamos.length > 4 ? 'end' : 'middle'} height={barPrestamos.length > 4 ? 52 : 28} />
+                        <XAxis
+                          dataKey="name"
+                          tick={{ fontSize: 11 }}
+                          interval={0}
+                          angle={barPrestamos.length > 4 ? -18 : 0}
+                          textAnchor={barPrestamos.length > 4 ? 'end' : 'middle'}
+                          height={barPrestamos.length > 4 ? 52 : 28}
+                        />
                         <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                         <Tooltip contentStyle={chartTooltipStyle} />
                         <Bar dataKey="total" fill="#0d9488" radius={[6, 6, 0, 0]} maxBarSize={48} />
@@ -751,39 +866,54 @@ function ReportsPage() {
                 </div>
               </div>
 
-              <div className="reports-vencidos-card">
+              <div className="reports-chart-card reports-vencidos-chart-card">
                 <h3>Préstamos vencidos</h3>
-                <p>Préstamos activos con fecha prevista de devolución ya superada.</p>
+                <p className="reports-chart-sub">Préstamos activos con fecha prevista de devolución ya superada.</p>
                 {!chartsOk.vencidos ? (
-                  <p className="reports-chart-empty">No se pudo cargar la lista de vencidos.</p>
-                ) : prestamosVencidos.length === 0 ? (
-                  <p className="reports-chart-empty" style={{ color: '#059669', fontWeight: 600 }}>
-                    No hay préstamos vencidos.
-                  </p>
+                  <div className="reports-chart-body">
+                    <p className="reports-chart-empty">No se pudo cargar la lista de vencidos.</p>
+                  </div>
+                ) : prestamosVencidosChartData.length === 0 ? (
+                  <div className="reports-chart-body">
+                    <p className="reports-chart-empty reports-vencidos-empty-strong">No hay préstamos vencidos.</p>
+                  </div>
                 ) : (
-                  <div className="reports-mini-table-wrap">
-                    <table className="reports-mini-table">
-                      <thead>
-                        <tr>
-                          <th>ID</th>
-                          <th>Usuario</th>
-                          <th>Salida</th>
-                          <th>Prevista</th>
-                          <th>Días retraso</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {prestamosVencidos.map((row, idx) => (
-                          <tr key={pick(row, 'idPrestamo', 'IdPrestamo') ?? idx}>
-                            <td>{pick(row, 'idPrestamo', 'IdPrestamo') ?? '-'}</td>
-                            <td>{pick(row, 'usuario', 'Usuario') ?? '-'}</td>
-                            <td>{formatAuditDate(pick(row, 'fechaSalida', 'FechaSalida'))}</td>
-                            <td>{formatAuditDate(pick(row, 'fechaPrevista', 'FechaPrevista'))}</td>
-                            <td>{pick(row, 'diasRetraso', 'DiasRetraso') ?? '-'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="reports-chart-body reports-vencidos-body">
+                    <div className="reports-vencidos-summary">
+                      <strong>{prestamosVencidosChartData.length}</strong>
+                      <span>préstamos vencidos detectados</span>
+                    </div>
+                    <div className="reports-vencidos-chart-shell">
+                      <ResponsiveContainer width="100%" height={240}>
+                        <BarChart
+                          layout="vertical"
+                          data={prestamosVencidosChartData}
+                          margin={{ top: 4, right: 20, left: 12, bottom: 4 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+                          <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                          <YAxis
+                            type="category"
+                            dataKey="name"
+                            width={120}
+                            tick={{ fontSize: 10 }}
+                            interval={0}
+                          />
+                          <Tooltip
+                            contentStyle={chartTooltipStyle}
+                            formatter={(value) => [`${value} días`, 'Retraso']}
+                            labelFormatter={(_, payload) => {
+                              const item = payload?.[0]?.payload
+                              return item ? `#${item.id} · ${formatAuditDate(item.prevista)}` : ''
+                            }}
+                          />
+                          <Bar dataKey="diasRetraso" fill="#dc2626" radius={[0, 8, 8, 0]} maxBarSize={28} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="reports-vencidos-footer-note">
+                      <span>Escala relativa: 1 a {maxVencidoDays} días de atraso</span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -885,14 +1015,42 @@ function ReportsPage() {
       </ModulePageShell>
 
       {showModal && modalItem ? (
-        <div className="modal-backdrop" style={{ zIndex: 99999, background: 'rgba(15, 23, 42, 0.66)', position: 'fixed', inset: 0 }} role="presentation" onClick={closeModal}>
-          <section className="modal-card" style={{ maxWidth: 880 }} role="dialog" aria-modal="true" aria-labelledby="rep-modal-title" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="modal-backdrop"
+          style={{ zIndex: 99999, background: 'rgba(15, 23, 42, 0.66)', position: 'fixed', inset: 0 }}
+          role="presentation"
+          onClick={closeModal}
+        >
+          <section
+            className="modal-card"
+            style={{ maxWidth: 880 }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="rep-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
             <header className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 10, background: '#eff6ff', color: '#1d4ed8', fontWeight: 700 }}>AU</span>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    background: '#eff6ff',
+                    color: '#1d4ed8',
+                    fontWeight: 700,
+                  }}
+                >
+                  AU
+                </span>
                 <div>
                   <h2 id="rep-modal-title" style={{ margin: 0 }}>Detalle de auditoría</h2>
-                  <p style={{ margin: '4px 0 0', fontSize: '0.82rem', color: '#64748b' }}>Registro completo de la acción seleccionada</p>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.82rem', color: '#64748b' }}>
+                    Registro completo de la acción seleccionada
+                  </p>
                 </div>
               </div>
               <button type="button" className="icon-button" onClick={closeModal} aria-label="Cerrar">
@@ -903,10 +1061,20 @@ function ReportsPage() {
             <div className="articulo-modal-body" style={{ padding: 24, background: '#fff' }}>
               <div className="reports-modal-grid">
                 <div style={{ display: 'grid', gap: 10 }}>
-                  <div className="reports-modal-field"><strong>ID:</strong> {pick(modalItem, 'idAuditoria', 'IdAuditoria') ?? modalItem.id ?? '-'}</div>
-                  <div className="reports-modal-field"><strong>Acción:</strong> {pick(modalItem, 'accion', 'Accion') ?? '-'}</div>
-                  <div className="reports-modal-field"><strong>Fecha:</strong> {formatAuditDate(pick(modalItem, 'fechaAccion', 'FechaAccion') ?? modalItem.fecha)}</div>
-                  <div className="reports-modal-field"><strong>Usuario:</strong> {pick(modalItem, 'usuario', 'Usuario') ?? modalItem.generadoPor ?? 'Sistema'}</div>
+                  <div className="reports-modal-field">
+                    <strong>ID:</strong> {pick(modalItem, 'idAuditoria', 'IdAuditoria') ?? modalItem.id ?? '-'}
+                  </div>
+                  <div className="reports-modal-field">
+                    <strong>Acción:</strong> {pick(modalItem, 'accion', 'Accion') ?? '-'}
+                  </div>
+                  <div className="reports-modal-field">
+                    <strong>Fecha:</strong>{' '}
+                    {formatAuditDate(pick(modalItem, 'fechaAccion', 'FechaAccion') ?? modalItem.fecha)}
+                  </div>
+                  <div className="reports-modal-field">
+                    <strong>Usuario:</strong>{' '}
+                    {pick(modalItem, 'usuario', 'Usuario') ?? modalItem.generadoPor ?? 'Sistema'}
+                  </div>
                   <div className="reports-modal-field" style={{ wordBreak: 'break-word' }}>
                     <strong>Tabla afectada:</strong>{' '}
                     {pick(modalItem, 'tablaAfectada', 'TablaAfectada') ?? '—'}
@@ -921,8 +1089,15 @@ function ReportsPage() {
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
-                <button type="button" className="btn" onClick={closeModal}>Cerrar</button>
-                <button type="button" className="btn btn-primary" onClick={() => exportDetailPDF(modalItem)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <button type="button" className="btn" onClick={closeModal}>
+                  Cerrar
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => exportDetailPDF(modalItem)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                >
                   <Download size={14} aria-hidden="true" />
                   Descargar PDF
                 </button>

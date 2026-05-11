@@ -56,6 +56,17 @@ public class PrestamosController : ControllerBase
     [Authorize(Roles = "Administrador,Docente")]
     public async Task<IActionResult> GetTodos() => Ok(await _repository.ObtenerTodosPrestamosAsync());
 
+    [HttpGet("mis")]
+    [Authorize(Roles = "Administrador,Docente,Estudiante")]
+    public async Task<IActionResult> GetMis()
+    {
+        if (!User.TryGetUserId(out var idUsuarioActor))
+            return Unauthorized(new { message = "Token inválido: no se pudo obtener el usuario actor." });
+
+        var prestamos = await _repository.ObtenerPrestamosPorUsuarioAsync(idUsuarioActor);
+        return Ok(prestamos);
+    }
+
     [HttpPut("aprobar/{id}")]
     [Authorize(Roles = "Administrador,Docente")]
     public async Task<IActionResult> Aprobar(int id, PrestamoAprobarDTO dto)

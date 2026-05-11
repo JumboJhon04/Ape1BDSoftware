@@ -22,6 +22,9 @@ namespace SistemaInventario.Application.Interfaces
         // Ver todos los préstamos activos en la FISEI
         Task<IEnumerable<PrestamoDTO>> ObtenerPrestamosActivosAsync();
 
+        // Ver préstamos de un usuario específico (por IdUsuario)
+        Task<IEnumerable<PrestamoDTO>> ObtenerPrestamosPorUsuarioAsync(int idUsuario);
+
         // Finalizar y marcar artículos como disponibles nuevamente
         Task<bool> FinalizarPrestamoAsync(int idPrestamo, int idUsuarioActor);
 

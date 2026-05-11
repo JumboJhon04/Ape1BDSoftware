@@ -38,7 +38,9 @@ function getMaintenanceAlertsForDocente(mantenimientosTodos, articulos, userId) 
   return (Array.isArray(mantenimientosTodos) ? mantenimientosTodos : [])
     .filter((m) => {
       const estado = normalizeText(pick(m, 'estado', 'Estado') ?? '')
-      if (estado === 'finalizado') return false
+      if (!estado.includes('progreso') && !estado.includes('curso') && !estado.includes('pendiente')) {
+        return false
+      }
 
       const idArticuloMantenimiento = pick(m, 'idArticulo', 'IdArticulo')
       return idArticuloMantenimiento != null && idsArticulosMiCargo.has(idArticuloMantenimiento)
