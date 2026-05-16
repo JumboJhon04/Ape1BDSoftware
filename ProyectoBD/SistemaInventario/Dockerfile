@@ -2,23 +2,24 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-# Al estar en la raíz de la solución, copiamos el .sln directamente
-COPY SistemaInventario/*.sln ./
+# Copiamos tu archivo de solución apuntando a la carpeta SistemaInventario
+# (Mapeamos tanto .sln como .slnx por si acaso)
+COPY SistemaInventario/SistemaInventario.* ./SistemaInventario/
 
-# Copiamos los archivos .csproj usando las carpetas que tienes al lado del Dockerfile
-COPY CleanTeeth.WebApi/CleanTeeth.WebApi.csproj ./CleanTeeth.WebApi/
-COPY CleanTeeth.Application/CleanTeeth.Application.csproj ./CleanTeeth.Application/
-COPY CleanTeeth.Domain/CleanTeeth.Domain.csproj ./CleanTeeth.Domain/
-COPY CleanTeeth.Infrastructure/CleanTeeth.Infrastructure.csproj ./CleanTeeth.Infrastructure/
+# Copiamos cada archivo .csproj usando los nombres EXACTOS de tus imágenes
+COPY SistemaInventario.API/SistemaInventario.API.csproj ./SistemaInventario.API/
+COPY SistemaInventario.Aplication/SistemaInventario.Aplication.csproj ./SistemaInventario.Aplication/
+COPY SistemaInventario.Domain/SistemaInventario.Domain.csproj ./SistemaInventario.Domain/
+COPY SistemaInventario.Infrastructure/SistemaInventario.Infrastructure.csproj ./SistemaInventario.Infrastructure/
 
-# Restauramos los paquetes NuGet de toda la solución
-RUN dotnet restore *.sln
+# Restauramos los paquetes NuGet de la solución
+RUN dotnet restore SistemaInventario/SistemaInventario.*
 
-# Copiamos todo el resto del código de los proyectos al contenedor
+# Copiamos absolutamente todo el resto del código del repositorio al contenedor
 COPY . .
 
-# Nos movemos a la carpeta de tu WebApi para compilar el publish
-WORKDIR "/src/CleanTeeth.WebApi"
+# Nos movemos a la ruta interna de la API para compilar el publish
+WORKDIR "/src/SistemaInventario.API"
 RUN dotnet publish -c Release -o /app/publish /p:UseAppHost=false
 
 # 2. Etapa de ejecución (Runtime de .NET 10)
@@ -30,4 +31,5 @@ EXPOSE 8080
 ENV ASPNETCORE_URLS=http://+:8080
 ENV ASPNETCORE_ENVIRONMENT=Production
 
-ENTRYPOINT ["dotnet", "CleanTeeth.WebApi.dll"]
+# Ejecutamos la DLL real de tu API
+ENTRYPOINT ["dotnet", "SistemaInventario.API.dll"]
