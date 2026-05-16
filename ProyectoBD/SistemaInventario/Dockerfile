@@ -1,14 +1,12 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-COPY SistemaInventario.slnx ./
-
 COPY SistemaInventario.API/SistemaInventario.API.csproj ./SistemaInventario.API/
 COPY SistemaInventario.Aplication/SistemaInventario.Aplication.csproj ./SistemaInventario.Aplication/
 COPY SistemaInventario.Domain/SistemaInventario.Domain.csproj ./SistemaInventario.Domain/
 COPY SistemaInventario.Infrastructure/SistemaInventario.Infrastructure.csproj ./SistemaInventario.Infrastructure/
 
-RUN dotnet restore SistemaInventario.slnx
+RUN dotnet restore SistemaInventario.API/SistemaInventario.API.csproj
 
 COPY . .
 
