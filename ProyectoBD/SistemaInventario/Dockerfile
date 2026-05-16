@@ -2,24 +2,23 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-# Copiamos tu archivo de solución apuntando a la carpeta SistemaInventario
-# (Mapeamos tanto .sln como .slnx por si acaso)
-COPY SistemaInventario/SistemaInventario.* ./SistemaInventario/
+# Copiamos la solución apuntando a su ruta real absoluta en tu GitHub
+COPY ProyectoBD/SistemaInventario/SistemaInventario.* ./SistemaInventario/
 
-# Copiamos cada archivo .csproj usando los nombres EXACTOS de tus imágenes
-COPY SistemaInventario.API/SistemaInventario.API.csproj ./SistemaInventario.API/
-COPY SistemaInventario.Aplication/SistemaInventario.Aplication.csproj ./SistemaInventario.Aplication/
-COPY SistemaInventario.Domain/SistemaInventario.Domain.csproj ./SistemaInventario.Domain/
-COPY SistemaInventario.Infrastructure/SistemaInventario.Infrastructure.csproj ./SistemaInventario.Infrastructure/
+# Copiamos cada archivo .csproj anteponiendo la carpeta contenedora real del repositorio
+COPY ProyectoBD/SistemaInventario.API/SistemaInventario.API.csproj ./SistemaInventario.API/
+COPY ProyectoBD/SistemaInventario.Aplication/SistemaInventario.Aplication.csproj ./SistemaInventario.Aplication/
+COPY ProyectoBD/SistemaInventario.Domain/SistemaInventario.Domain.csproj ./SistemaInventario.Domain/
+COPY ProyectoBD/SistemaInventario.Infrastructure/SistemaInventario.Infrastructure.csproj ./SistemaInventario.Infrastructure/
 
-# Restauramos los paquetes NuGet de la solución
+# Restauramos los paquetes NuGet usando la ruta interna del contenedor
 RUN dotnet restore SistemaInventario/SistemaInventario.*
 
-# Copiamos absolutamente todo el resto del código del repositorio al contenedor
+# Copiamos todo el contenido del repositorio al contenedor
 COPY . .
 
-# Nos movemos a la ruta interna de la API para compilar el publish
-WORKDIR "/src/SistemaInventario.API"
+# Nos movemos a la ruta interna donde quedó la API para compilar el publish
+WORKDIR "/src/ProyectoBD/SistemaInventario.API"
 RUN dotnet publish -c Release -o /app/publish /p:UseAppHost=false
 
 # 2. Etapa de ejecución (Runtime de .NET 10)
@@ -31,5 +30,4 @@ EXPOSE 8080
 ENV ASPNETCORE_URLS=http://+:8080
 ENV ASPNETCORE_ENVIRONMENT=Production
 
-# Ejecutamos la DLL real de tu API
 ENTRYPOINT ["dotnet", "SistemaInventario.API.dll"]
