@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL Challenge - Grupo 4</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        /* ================= THEME & VARIABLES ================= */
+        :root {
+            --bg-dark: #030305;
+            --bg-panel: rgba(12, 12, 16, 0.7);
+            --bg-card: rgba(22, 22, 30, 0.6);
+            --primary: #00f0ff; /* Neon Cyan */
+            --secondary: #7000ff; /* Deep Purple */
+            --tertiary: #ff0055; /* Neon Pink */
+            --success: #00e676;
+            --error: #ff1744;
+            --text-main: #f8f9fa;
+            --text-muted: #a0aab2;
+            --border-light: rgba(255, 255, 255, 0.08);
+            --border-glow: rgba(0, 240, 255, 0.4);
+            
+            --font-heading: 'Outfit', sans-serif;
+            --font-body: 'Inter', sans-serif;
+            --font-code: 'Fira Code', monospace;
+            
+            --transition-smooth: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        /* ================= GLOBAL RESETS & SCROLLBAR ================= */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.2);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.15);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--primary);
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: var(--font-body);
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* ================= DYNAMIC BACKGROUND ================= */
+        .bg-effects {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.4;
+            animation: float 20s infinite alternate ease-in-out;
+        }
+
+        .orb-1 {
+            width: 600px; height: 600px;
+            background: radial-gradient(circle, var(--secondary) 0%, transparent 70%);
+            top: -100px; left: -100px;
+        }
+        .orb-2 {
+            width: 500px; height: 500px;
+            background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
+            bottom: -50px; right: 10%;
+            animation-delay: -5s;
+        }
+        .orb-3 {
+            width: 400px; height: 400px;
+            background: radial-gradient(circle, var(--tertiary) 0%, transparent 70%);
+            top: 40%; left: 40%;
+            opacity: 0.2;
+            animation-delay: -10s;
+        }
+
+        .grid-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: 
+                linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            opacity: 0.5;
+            mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
+            -webkit-mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
+        }
+
+        @keyframes float {
+            0% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(50px, 30px) scale(1.1); }
+            100% { transform: translate(-30px, 60px) scale(0.9); }
+        }
+
+        /* ================= PRESENTATION CONTAINER ================= */
+        .slide-deck {
+            position: relative;
+            width: 1400px;
+            height: 780px;
+            background: var(--bg-panel);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border-radius: 24px;
+            border: 1px solid var(--border-light);
+            box-shadow: 
+                0 30px 60px -10px rgba(0, 0, 0, 0.8), 
+                inset 0 0 0 1px rgba(255,255,255,0.05);
+            overflow: hidden;
+            z-index: 10;
+        }
+
+        .slide {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            padding: 60px 80px;
+            display: flex;
+            flex-direction: column;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(30px) scale(0.98);
+            transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.6s;
+            z-index: 1;
+        }
+
+        .slide.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0) scale(1);
+            z-index: 2;
+        }
+
+        /* ANIMATIONS FOR SLIDE CONTENT */
+        .slide .stagger-1, .slide .stagger-2, .slide .stagger-3, .slide .stagger-4 {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+        .slide.active .stagger-1 { opacity: 1; transform: translateY(0); transition-delay: 0.2s; }
+        .slide.active .stagger-2 { opacity: 1; transform: translateY(0); transition-delay: 0.35s; }
+        .slide.active .stagger-3 { opacity: 1; transform: translateY(0); transition-delay: 0.5s; }
+        .slide.active .stagger-4 { opacity: 1; transform: translateY(0); transition-delay: 0.65s; }
+
+        /* ================= TYPOGRAPHY ================= */
+        h1, h2, h3, h4 {
+            font-family: var(--font-heading);
+            color: var(--text-main);
+        }
+
+        h1 {
+            font-size: 72px;
+            font-weight: 900;
+            line-height: 1.1;
+            letter-spacing: -0.03em;
+            margin-bottom: 24px;
+        }
+
+        .gradient-text {
+            background: linear-gradient(to right, var(--primary), #a855f7, var(--tertiary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 40px rgba(0, 240, 255, 0.3);
+        }
+
+        .slide-header {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-light);
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .slide-title {
+            font-size: 42px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .badge {
+            background: rgba(0, 240, 255, 0.1);
+            border: 1px solid rgba(0, 240, 255, 0.2);
+            color: var(--primary);
+            padding: 8px 16px;
+            border-radius: 30px;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        
+        .badge.purple {
+            background: rgba(112, 0, 255, 0.15);
+            border-color: rgba(112, 0, 255, 0.3);
+            color: #b388ff;
+        }
+
+        p {
+            font-size: 17px;
+            line-height: 1.6;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        strong {
+            color: var(--text-main);
+            font-weight: 600;
+        }
+
+        /* ================= LAYOUTS ================= */
+        .layout-2col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            height: 100%;
+            overflow-y: hidden;
+        }
+
+        .layout-3col {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 25px;
+        }
+
+        .col-scrollable {
+            overflow-y: auto;
+            padding-right: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding-bottom: 40px;
+        }
+
+        /* ================= UI COMPONENTS ================= */
+        .glass-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            border-radius: 16px;
+            padding: 24px;
+            transition: var(--transition-smooth);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .glass-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .glass-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(255,255,255,0.15);
+            box-shadow: 0 15px 30px -10px rgba(0,0,0,0.5);
+        }
+
+        .glass-card:hover::before { opacity: 1; }
+
+        .card-title {
+            font-family: var(--font-heading);
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--text-main);
+        }
+
+        .card-title i { color: var(--primary); font-size: 18px; }
+
+        .info-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .info-list li {
+            position: relative;
+            padding-left: 28px;
+            font-size: 15px;
+            line-height: 1.5;
+            color: var(--text-muted);
+        }
+
+        .info-list li i {
+            position: absolute;
+            left: 0; top: 3px;
+            color: var(--primary);
+            font-size: 14px;
+        }
+
+        /* ================= CODE BLOCKS ================= */
+        .code-window {
+            background: #09090b;
+            border: 1px solid #27272a;
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .code-header {
+            background: #18181b;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid #27272a;
+        }
+
+        .mac-btn {
+            width: 12px; height: 12px; border-radius: 50%;
+        }
+        .mac-close { background: #ff5f56; }
+        .mac-min { background: #ffbd2e; }
+        .mac-max { background: #27c93f; }
+        .code-title {
+            margin-left: 10px; font-family: var(--font-body); font-size: 12px; color: #a1a1aa; font-weight: 500;
+        }
+
+        .code-content {
+            padding: 20px;
+            font-family: var(--font-code);
+            font-size: 14px;
+            line-height: 1.6;
+            color: #e4e4e7;
+            overflow-x: auto;
+        }
+
+        .sql-kw { color: #f43f5e; font-weight: 600; } /* Pink */
+        .sql-fn { color: #8b5cf6; } /* Purple */
+        .sql-str { color: #10b981; } /* Green */
+        .sql-var { color: #38bdf8; } /* Blue */
+        .sql-op { color: #facc15; } /* Yellow */
+        .sql-com { color: #71717a; font-style: italic; } /* Gray */
+
+        /* ================= ALERTS & HIGHLIGHTS ================= */
+        .alert-box {
+            background: rgba(234, 179, 8, 0.1);
+            border-left: 4px solid #eab308;
+            padding: 16px;
+            border-radius: 0 8px 8px 0;
+            margin-top: 15px;
+        }
+        .alert-box.danger {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: #ef4444;
+        }
+        .alert-box h4 {
+            font-size: 15px; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;
+        }
+        .alert-box.danger h4 { color: #ef4444; }
+        .alert-box.warning h4 { color: #eab308; }
+        .alert-box p { margin: 0; font-size: 14px; color: var(--text-main); }
+
+        /* ================= FOOTER & CONTROLS ================= */
+        .presentation-footer {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+            z-index: 20;
+        }
+
+        .progress-line {
+            position: absolute;
+            bottom: 0; left: 0; height: 3px;
+            background: rgba(255,255,255,0.05);
+            width: 100%;
+        }
+        .progress-fill {
+            height: 100%; width: 0%;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            box-shadow: 0 0 10px var(--primary);
+            transition: width 0.4s ease;
+        }
+
+        .slide-indicator {
+            font-family: var(--font-code);
+            font-size: 13px;
+            color: var(--text-muted);
+            letter-spacing: 2px;
+        }
+
+        .nav-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .nav-btn {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: var(--text-main);
+            width: 40px; height: 40px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: var(--transition-smooth);
+        }
+
+        .nav-btn:hover {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #000;
+            transform: scale(1.1);
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
+        }
+
+        /* ================= GAME SHOW QUIZ STYLES ================= */
+        .quiz-wrapper {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+            max-width: 1000px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .quiz-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding: 15px 25px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 16px;
+            border: 1px solid var(--border-light);
+        }
+
+        .score-display {
+            font-family: var(--font-heading);
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .score-display span {
+            color: var(--primary);
+            text-shadow: 0 0 15px rgba(0,240,255,0.5);
+            font-size: 28px;
+        }
+
+        .question-box {
+            font-family: var(--font-heading);
+            font-size: 24px;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 30px;
+            line-height: 1.4;
+            color: var(--text-main);
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .option-btn {
+            background: rgba(30, 30, 40, 0.6);
+            border: 2px solid rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: left;
+            font-family: var(--font-body);
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-main);
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .option-btn::before {
+            content: '';
+            position: absolute; top: 0; left: 0; width: 4px; height: 100%;
+            background: rgba(255,255,255,0.2);
+            transition: all 0.2s;
+        }
+
+        .option-btn:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary);
+            background: rgba(0, 240, 255, 0.05);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+        }
+        .option-btn:hover::before { background: var(--primary); width: 6px; }
+
+        .option-letter {
+            background: rgba(255,255,255,0.1);
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 800; font-family: var(--font-heading);
+            flex-shrink: 0;
+        }
+
+        /* States */
+        .option-btn.correct {
+            background: rgba(0, 230, 118, 0.1);
+            border-color: var(--success);
+            box-shadow: 0 0 30px rgba(0, 230, 118, 0.2);
+            animation: pulse-correct 0.5s ease;
+        }
+        .option-btn.correct::before { background: var(--success); width: 100%; opacity: 0.1; }
+        .option-btn.correct .option-letter { background: var(--success); color: #000; }
+
+        .option-btn.wrong {
+            background: rgba(255, 23, 68, 0.1);
+            border-color: var(--error);
+            animation: shake 0.4s ease;
+        }
+        .option-btn.wrong::before { background: var(--error); }
+        .option-btn.wrong .option-letter { background: var(--error); color: #fff; }
+
+        .option-btn.disabled { pointer-events: none; opacity: 0.6; }
+        .option-btn.correct.disabled { opacity: 1; }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-10px); }
+            40%, 80% { transform: translateX(10px); }
+        }
+        @keyframes pulse-correct {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        /* Explanation Box */
+        .explanation-box {
+            background: rgba(112, 0, 255, 0.1);
+            border-left: 4px solid var(--secondary);
+            border-radius: 0 12px 12px 0;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            display: none;
+            animation: fadeInUp 0.5s ease;
+        }
+        .explanation-box h4 { font-size: 16px; margin-bottom: 6px; color: #b388ff; display: flex; align-items: center; gap: 8px;}
+        .explanation-box p { margin: 0; color: #e4e4e7; font-size: 14px; line-height: 1.6; }
+
+        .next-q-btn {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: #fff;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 800;
+            font-family: var(--font-heading);
+            cursor: pointer;
+            align-self: flex-end;
+            display: none;
+            box-shadow: 0 10px 25px rgba(112, 0, 255, 0.3);
+            transition: all 0.3s;
+        }
+        .next-q-btn:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 15px 30px rgba(0, 240, 255, 0.4); }
+
+        /* Results Screen */
+        .results-screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+        }
+        .score-circle {
+            width: 200px; height: 200px;
+            border-radius: 50%;
+            background: conic-gradient(var(--primary) var(--progress, 0%), rgba(255,255,255,0.05) 0);
+            display: flex; align-items: center; justify-content: center;
+            position: relative;
+            margin-bottom: 40px;
+            box-shadow: 0 0 50px rgba(0,240,255,0.2);
+        }
+        .score-circle::before {
+            content: ''; position: absolute;
+            width: 170px; height: 170px;
+            background: var(--bg-panel);
+            border-radius: 50%;
+        }
+        .score-text {
+            position: relative; z-index: 10;
+            font-family: var(--font-heading); font-size: 56px; font-weight: 900; color: #fff;
+        }
+
+    </style>
+</head>
+
+<body>
+    <!-- Abstract Tech Background -->
+    <div class="bg-effects">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+        <div class="grid-overlay"></div>
+    </div>
+
+    <div class="slide-deck">
+
+        <!-- SLIDE 1: PORTADA -->
+        <div class="slide active" id="slide-1">
+            <div style="height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+                <div class="stagger-1 badge" style="margin-bottom: 30px;">Laboratorio U4 - 19/05/2026</div>
+                <h1 class="stagger-2">SQL Challenge: <br><span class="gradient-text">Joins, Filtros y Agregaciones</span></h1>
+                <p class="stagger-3" style="font-size: 22px; max-width: 800px; margin-top: 10px; color: #d4d4d8;">
+                    Análisis profundo de las estructuras de consulta del proyecto.
+                </p>
+                <div class="stagger-4" style="margin-top: 60px; display: flex; gap: 30px;">
+                    <div class="glass-card" style="padding: 15px 30px; text-align: center;">
+                        <i class="fa-solid fa-code-merge" style="color: var(--primary); font-size: 24px; margin-bottom: 10px;"></i>
+                        <div style="font-weight: 700; color: #fff;">Uniones</div>
+                    </div>
+                    <div class="glass-card" style="padding: 15px 30px; text-align: center;">
+                        <i class="fa-solid fa-filter" style="color: var(--secondary); font-size: 24px; margin-bottom: 10px;"></i>
+                        <div style="font-weight: 700; color: #fff;">Filtros</div>
+                    </div>
+                    <div class="glass-card" style="padding: 15px 30px; text-align: center;">
+                        <i class="fa-solid fa-calculator" style="color: var(--tertiary); font-size: 24px; margin-bottom: 10px;"></i>
+                        <div style="font-weight: 700; color: #fff;">Agregaciones</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 2: JOINS AVANZADOS -->
+        <div class="slide" id="slide-2">
+            <div class="slide-header stagger-1">
+                <span class="badge">Eje 1</span>
+                <h2 class="slide-title">Uniones Relacionales (Joins) y Patrones</h2>
+            </div>
+            <div class="layout-2col">
+                <div class="col-scrollable stagger-2">
+                    <p>Dominar los Joins va más allá de unificar tablas. Implica entender cómo el motor de base de datos construye productos cartesianos y los filtra basándose en condiciones matemáticas.</p>
+                    
+                    <div class="glass-card" style="margin-bottom: 20px;">
+                        <h3 class="card-title"><i class="fa-solid fa-link"></i> Patrones de Uniones</h3>
+                        <ul class="info-list">
+                            <li><i class="fa-solid fa-caret-right"></i><strong style="color: var(--primary);">INNER JOIN:</strong> Intersección. Omite todo lo que no hace match.</li>
+                            <li><i class="fa-solid fa-caret-right"></i><strong style="color: var(--secondary);">LEFT JOIN:</strong> Base + coincidencias. Es la piedra angular para construir el <em>Anti-Join</em>.</li>
+                            <li><i class="fa-solid fa-caret-right"></i><strong style="color: var(--tertiary);">SELF JOIN:</strong> Unir una tabla consigo misma (Ej: <code>FROM empleados e1 JOIN empleados e2 ON e1.jefe_id = e2.id</code>). Esencial para resolver jerarquías en una sola tabla.</li>
+                        </ul>
+                    </div>
+
+                    <div class="alert-box danger">
+                        <h4><i class="fa-solid fa-bomb"></i> El Producto Cartesiano</h4>
+                        <p>Olvidar la cláusula <code>ON</code> (o usar <code>CROSS JOIN</code>) genera la multiplicación de las filas. Una tabla de 1,000 filas cruzada con otra de 1,000 generará <strong>1,000,000 de registros</strong> en memoria RAM al instante.</p>
+                    </div>
+                </div>
+                <div class="col-scrollable stagger-3">
+                    <div class="glass-card" style="border-color: var(--primary);">
+                        <h3 class="card-title"><i class="fa-solid fa-bolt"></i> El Patrón "Anti-Join"</h3>
+                        <p style="font-size: 14px; margin-bottom: 15px;">¿Cómo encuentras clientes que <strong>NUNCA</strong> han comprado? El uso de <code>NOT IN</code> es ineficiente y puede fallar con valores NULL. El Anti-Join es el estándar de alto rendimiento:</p>
+                        
+                        <div style="background: #09090b; padding: 15px; border-radius: 8px; font-family: var(--font-code); font-size: 13px;">
+                            <span class="sql-kw">SELECT</span> c.nombre<br>
+                            <span class="sql-kw">FROM</span> clientes c<br>
+                            <span class="sql-kw">LEFT JOIN</span> facturas f <span class="sql-kw">ON</span> c.id = f.cliente_id<br>
+                            <span class="sql-kw">WHERE</span> f.id <span class="sql-kw">IS NULL</span>;
+                        </div>
+                        <p style="font-size: 13px; margin-top: 10px; color: var(--text-muted);">* Trae todos los clientes, intenta cruzarlos, y luego <strong>filtra</strong> quedándose solo con los que fallaron en cruzar (las columnas de la factura estarán en NULL).</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 3: FILTROS DE ALTO RENDIMIENTO -->
+        <div class="slide" id="slide-3">
+            <div class="slide-header stagger-1">
+                <span class="badge purple">Eje 2</span>
+                <h2 class="slide-title">Arquitectura de Filtros y Rendimiento</h2>
+            </div>
+            <div class="layout-2col">
+                <div class="col-scrollable stagger-2">
+                    <div class="glass-card" style="margin-bottom: 20px; border-color: rgba(239, 68, 68, 0.4);">
+                        <h3 class="card-title" style="color: #ef4444;"><i class="fa-solid fa-filter"></i> Evaluación: EXISTS vs IN</h3>
+                        <p style="font-size: 14px; margin-bottom: 10px;">Para validar si un dato existe en otra tabla inmensa:</p>
+                        <ul class="info-list" style="font-size: 13px;">
+                            <li><strong>Operador IN:</strong> Construye toda la lista de resultados en memoria antes de comparar. Es ineficiente para tablas grandes.</li>
+                            <li><strong>Operador EXISTS:</strong> Utiliza evaluación de cortocircuito (Short-circuit). Si encuentra <strong>una sola coincidencia</strong>, devuelve TRUE y aborta la búsqueda instantáneamente.</li>
+                        </ul>
+                    </div>
+
+                    <div class="alert-box" style="border-color: #00e676; background: rgba(0, 230, 118, 0.1);">
+                        <h4 style="color: #00e676;"><i class="fa-solid fa-list-ol"></i> Orden de Ejecución Lógica</h4>
+                        <p style="font-family: monospace; font-size: 13px; color: var(--text-main);">
+                            1. FROM / JOIN<br>
+                            2. WHERE (Filtro nivel registro)<br>
+                            3. GROUP BY<br>
+                            4. HAVING (Filtro nivel grupo)<br>
+                            5. SELECT<br>
+                            6. ORDER BY / LIMIT
+                        </p>
+                    </div>
+                </div>
+                <div class="stagger-3">
+                    <div class="glass-card" style="height: 100%;">
+                        <h3 class="card-title"><i class="fa-solid fa-microchip"></i> SARGability y Destrucción de Índices</h3>
+                        <p style="font-size: 14px; margin-bottom: 15px;">Una consulta es SARGable (Search Argument Able) si el motor puede usar un índice B-Tree para encontrar los datos rápido.</p>
+                        <p style="font-size: 14px; color: #ef4444; font-weight: bold; margin-bottom: 5px;">❌ Anti-Patrón (Table Scan)</p>
+                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 15px;">Aplicar funciones a la columna rompe la SARGability. El motor debe calcular la función fila por fila.</p>
+                        <div style="background: rgba(0,0,0,0.5); padding: 8px; border-radius: 4px; font-family: monospace; font-size: 13px; color: #ef4444; margin-bottom: 20px;">
+                            WHERE YEAR(fecha) = 2026<br>
+                            WHERE UPPER(nombre) = 'JUAN'
+                        </div>
+
+                        <p style="font-size: 14px; color: #00e676; font-weight: bold; margin-bottom: 5px;">✅ Patrón Óptimo (Index Seek)</p>
+                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 15px;">Aísla la columna en el lado izquierdo. Haz las conversiones matemáticas en el valor estático de la derecha.</p>
+                        <div style="background: rgba(0,0,0,0.5); padding: 8px; border-radius: 4px; font-family: monospace; font-size: 13px; color: #00e676;">
+                            WHERE fecha >= '2026-01-01' AND fecha < '2027-01-01'<br>
+                            WHERE nombre = 'JUAN' (con Collation CI)
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 4: AGREGACIONES COMPLEJAS -->
+        <div class="slide" id="slide-4">
+            <div class="slide-header stagger-1">
+                <span class="badge">Eje 3</span>
+                <h2 class="slide-title">Agregaciones y Pivotes Matriciales</h2>
+            </div>
+            <div class="layout-2col">
+                <div class="col-scrollable stagger-2">
+                    <p>Las consultas de "análisis de resultados" exigen extraer inteligencia de negocio. Aquí la matemática de conjuntos y el comportamiento de NULLs son críticos.</p>
+                    
+                    <div class="glass-card" style="margin-bottom: 20px;">
+                        <h3 class="card-title"><i class="fa-solid fa-ghost"></i> El Peligro de los Valores NULL</h3>
+                        <p style="font-size: 14px; margin-bottom: 10px;">Si tienes valores <code>[10, NULL, 20]</code>:</p>
+                        <ul class="info-list" style="font-size: 13px;">
+                            <li><code>SUM()</code> = 30 (Ignora NULL).</li>
+                            <li><code>COUNT(*)</code> = 3 (Cuenta todas las filas físicas).</li>
+                            <li><code>COUNT(col)</code> = 2 (Cuenta solo las filas no nulas).</li>
+                            <li><code>AVG()</code> = 15. Porque hace 30/2. <strong>¡Atención!</strong> Si el NULL era un "cero matemático", el promedio real debería ser 10 (30/3). Usa <code>COALESCE(col, 0)</code> para protegerte.</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="stagger-3">
+                    <div class="glass-card" style="border-color: var(--secondary);">
+                        <h3 class="card-title"><i class="fa-solid fa-table"></i> Pivoteo Manual de Datos</h3>
+                        <p style="font-size: 13px; margin-bottom: 15px;">A menudo los reportes exigen convertir "filas" de categorías en "columnas". El estándar SQL ANSI para lograr esto sin la cláusula propietaria PIVOT es combinando Agregaciones con expresiones condicionales CASE.</p>
+                        
+                        <div class="code-window">
+                            <div class="code-header">
+                                <div class="mac-btn mac-close"></div><div class="mac-btn mac-min"></div><div class="mac-btn mac-max"></div>
+                                <div class="code-title">reporte_pivoteado.sql</div>
+                            </div>
+                            <div class="code-content" style="font-size: 12px;">
+<span class="sql-com">-- Obteniendo total de facturas por estado en 1 sola fila</span><br>
+<span class="sql-kw">SELECT</span><br>
+&nbsp;&nbsp;id_vendedor,<br>
+&nbsp;&nbsp;<span class="sql-fn">SUM</span>(<span class="sql-kw">CASE WHEN</span> estado = <span class="sql-str">'PAGADA'</span> <span class="sql-kw">THEN</span> 1 <span class="sql-kw">ELSE</span> 0 <span class="sql-kw">END</span>) <span class="sql-kw">AS</span> pagadas,<br>
+&nbsp;&nbsp;<span class="sql-fn">SUM</span>(<span class="sql-kw">CASE WHEN</span> estado = <span class="sql-str">'ANULADA'</span> <span class="sql-kw">THEN</span> 1 <span class="sql-kw">ELSE</span> 0 <span class="sql-kw">END</span>) <span class="sql-kw">AS</span> anuladas<br>
+<span class="sql-kw">FROM</span> facturas<br>
+<span class="sql-kw">GROUP BY</span> id_vendedor;
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 5: NUEVA SLIDE - OPTIMIZACION DE JOINS -->
+        <div class="slide" id="slide-5">
+            <div class="slide-header stagger-1">
+                <span class="badge">Eje 1.5</span>
+                <h2 class="slide-title">Joins: Optimizador y Reconciliación</h2>
+            </div>
+            <div class="layout-2col">
+                <div class="col-scrollable stagger-2">
+                    <div class="glass-card" style="margin-bottom: 20px;">
+                        <h3 class="card-title"><i class="fa-solid fa-car-side"></i> La Tabla Conductora (Driving Table)</h3>
+                        <p style="font-size: 14px; margin-bottom: 10px;">Cuando haces múltiples joins (ej: <code>A JOIN B JOIN C</code>), el motor no procesa todo a la vez. El <em>Query Optimizer</em> escoge una tabla base para arrancar llamada <strong>Driving Table</strong>.</p>
+                        <ul class="info-list" style="font-size: 13px;">
+                            <li>El motor intenta predecir qué tabla tiene menos registros mediante el uso de "estadísticas".</li>
+                            <li><strong>Regla de oro de Arquitectura:</strong> Filtra agresivamente (con WHERE) tu tabla principal ANTES de hacer joins masivos. Mientras menos filas inicies en la conducción, más rápido evaluará los cruces subsecuentes.</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="col-scrollable stagger-3">
+                    <div class="glass-card" style="border-color: var(--tertiary);">
+                        <h3 class="card-title"><i class="fa-solid fa-code-compare"></i> El Poder del FULL OUTER JOIN</h3>
+                        <p style="font-size: 14px; margin-bottom: 15px;">Mantiene TODOS los registros de la izquierda y TODOS los de la derecha. Si no hay match en algún lado, pone valores NULL.</p>
+                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 15px;"><strong>Caso Analítico Top:</strong> Reconciliación de datos. Es la forma definitiva de comparar inventarios (Ej: Lo que está en Sistema vs Lo que está en Bodega) para detectar qué falta y qué sobra en una sola consulta.</p>
+                        <div style="background: rgba(0,0,0,0.5); padding: 10px; border-radius: 4px; font-family: monospace; font-size: 13px; color: var(--tertiary);">
+                            <span class="sql-kw">SELECT</span> sys.id, fis.id<br>
+                            <span class="sql-kw">FROM</span> inv_sistema sys<br>
+                            <span class="sql-kw">FULL OUTER JOIN</span> inv_fisico fis<br>
+                            <span class="sql-kw">ON</span> sys.id = fis.id<br>
+                            <span class="sql-kw">WHERE</span> sys.id <span class="sql-kw">IS NULL OR</span> fis.id <span class="sql-kw">IS NULL</span>;
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 6: NUEVA SLIDE - TECNICAS HIBRIDAS -->
+        <div class="slide" id="slide-6">
+            <div class="slide-header stagger-1">
+                <span class="badge purple">Eje 3.5</span>
+                <h2 class="slide-title">Técnicas Híbridas y Textuales</h2>
+            </div>
+            <div class="layout-2col">
+                <div class="col-scrollable stagger-2">
+                    <div class="glass-card" style="margin-bottom: 20px; border-color: rgba(239, 68, 68, 0.4);">
+                        <h3 class="card-title" style="color: #ef4444;"><i class="fa-solid fa-skull"></i> El Costo de COUNT(DISTINCT)</h3>
+                        <p style="font-size: 14px; margin-bottom: 10px;">Contar valores únicos (ej. Usuarios distintos activos al mes) exige que el motor ordene en memoria RAM toda la columna para poder eliminar los duplicados.</p>
+                        <p style="font-size: 13px; color: var(--text-muted);">En entornos de <em>Big Data</em>, usar <code>COUNT(DISTINCT id)</code> provocará un desbordamiento de memoria masivo (Spill to TempDB). En analítica avanzada, a menudo es mucho más rápido hacer una subconsulta con un <code>GROUP BY id</code> inicial y luego ejecutar un <code>COUNT(*)</code> externo sobre ese set ya reducido.</p>
+                    </div>
+                </div>
+                <div class="stagger-3">
+                    <div class="glass-card" style="border-color: #00e676; height: 100%;">
+                        <h3 class="card-title" style="color: #00e676;"><i class="fa-solid fa-layer-group"></i> Agregación de Cadenas (Strings)</h3>
+                        <p style="font-size: 14px; margin-bottom: 15px;">¿Qué pasa si en lugar de sumar dólares, necesitas colapsar texto? Por ejemplo: Mostrar un Cliente y en una sola celda listar todos los nombres de los productos que compró separados por comas.</p>
+                        
+                        <div style="background: rgba(0,0,0,0.5); padding: 10px; border-radius: 4px; font-family: monospace; font-size: 13px; color: var(--text-main); margin-bottom: 10px;">
+                            <span class="sql-com">-- PostgreSQL / SQL Server Moderno</span><br>
+                            STRING_AGG(producto, ', ')<br><br>
+                            <span class="sql-com">-- MySQL / MariaDB</span><br>
+                            GROUP_CONCAT(producto SEPARATOR ', ')
+                        </div>
+                        <p style="font-size: 13px; color: var(--text-muted);">Transforma las filas múltiples (Manzana, Pera, Uva) en un valor unificado: <strong>"Manzana, Pera, Uva"</strong>. Una de las funciones más requeridas en exportaciones de reportes gerenciales.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 7: QUIZ ULTRADIFICIL -->
+        <div class="slide" id="slide-7">
+            <div class="quiz-wrapper stagger-1">
+                <div class="quiz-header">
+                    <div>
+                        <span class="badge" style="margin-right: 15px; background: rgba(255, 23, 68, 0.2); border-color: var(--error); color: var(--error);">Evaluación Ultra-Hard</span>
+                        <span id="q-counter" style="color: var(--text-muted); font-weight: 600;">Pregunta 1/6</span>
+                    </div>
+                    <div class="score-display">Puntos: <span id="quiz-score">0</span></div>
+                </div>
+
+                <!-- Quiz Interface -->
+                <div id="quiz-interface">
+                    <div class="question-box" id="question-text">
+                        <!-- Pregunta inyectada por JS -->
+                    </div>
+
+                    <div class="options-grid" id="options-grid">
+                        <!-- Opciones inyectadas por JS -->
+                    </div>
+
+                    <div class="explanation-box" id="explanation-box">
+                        <h4><i class="fa-solid fa-microscope"></i> Análisis Forense</h4>
+                        <p id="explanation-text"></p>
+                    </div>
+
+                    <button class="next-q-btn" id="next-btn">
+                        Siguiente Pregunta <i class="fa-solid fa-bolt" style="margin-left: 8px;"></i>
+                    </button>
+                </div>
+
+                <!-- Results Interface -->
+                <div class="results-screen" id="results-interface">
+                    <h2 style="font-size: 48px; margin-bottom: 30px;" class="gradient-text">Evaluación Completada</h2>
+                    <div class="score-circle" id="score-circle">
+                        <div class="score-text" id="final-score-text">0/6</div>
+                    </div>
+                    <p style="font-size: 22px; max-width: 600px; margin-bottom: 40px;" id="result-message">
+                        Calculando resultados...
+                    </p>
+                    <button class="next-q-btn" style="display: block; align-self: center;" onclick="resetQuiz()">
+                        <i class="fa-solid fa-rotate-right" style="margin-right: 8px;"></i> Reintentar Simulador
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="presentation-footer">
+            <div class="slide-indicator" id="slide-indicator">01 / 07</div>
+            <div class="nav-controls">
+                <button class="nav-btn" onclick="changeSlide(-1)"><i class="fa-solid fa-chevron-left"></i></button>
+                <button class="nav-btn" onclick="changeSlide(1)"><i class="fa-solid fa-chevron-right"></i></button>
+            </div>
+            <div class="progress-line">
+                <div class="progress-fill" id="progress-bar"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        /* ================= PRESENTATION ENGINE ================= */
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+        let currentSlide = 1;
+
+        function updatePresentation() {
+            slides.forEach((slide, index) => {
+                if (index === currentSlide - 1) {
+                    slide.classList.add('active');
+                } else {
+                    slide.classList.remove('active');
+                }
+            });
+
+            document.getElementById('slide-indicator').innerText = `${String(currentSlide).padStart(2, '0')} / ${String(totalSlides).padStart(2, '0')}`;
+            const progress = ((currentSlide - 1) / (totalSlides - 1)) * 100;
+            document.getElementById('progress-bar').style.width = `${progress}%`;
+        }
+
+        function changeSlide(direction) {
+            currentSlide += direction;
+            if (currentSlide < 1) currentSlide = 1;
+            if (currentSlide > totalSlides) currentSlide = totalSlides;
+            updatePresentation();
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') changeSlide(1);
+            if (e.key === 'ArrowLeft') changeSlide(-1);
+        });
+
+        /* ================= QUIZ ENGINE (ULTRA-HARD) ================= */
+        const quizData = [
+            {
+                question: "Joins (Anti-Join): ¿Cuál es el método más eficiente y estándar en SQL para encontrar registros en la Tabla A que NO tienen correspondencia en la Tabla B?",
+                options: [
+                    "SELECT * FROM A WHERE id NOT IN (SELECT id FROM B)",
+                    "SELECT A.* FROM A LEFT JOIN B ON A.id = B.id WHERE B.id IS NULL",
+                    "SELECT * FROM A MINUS SELECT * FROM B",
+                    "SELECT A.* FROM A CROSS JOIN B WHERE A.id != B.id"
+                ],
+                correct: 1,
+                explanation: "El patrón LEFT JOIN + IS NULL (Anti-Join) es altamente optimizado por los motores modernos. NOT IN es ineficiente y falla silenciosamente (devuelve nulo) si la subconsulta B devuelve aunque sea un solo valor NULL."
+            },
+            {
+                question: "Filtros de Rendimiento: Al comparar grandes volúmenes de datos en subconsultas, ¿por qué la cláusula EXISTS suele ser infinitamente superior a IN?",
+                options: [
+                    "Porque EXISTS evalúa verdadero/falso y detiene el escaneo al encontrar la primera coincidencia (Short-circuit).",
+                    "Porque IN requiere que las columnas estén indexadas obligatoriamente con un B-Tree.",
+                    "Porque EXISTS carga toda la subconsulta en memoria RAM antes de evaluar.",
+                    "Es falso. IN es estructuralmente más rápido al ejecutar operaciones de bloque."
+                ],
+                correct: 0,
+                explanation: "EXISTS emplea 'short-circuiting'. En cuanto el motor halla una fila que cumple la condición matemática, retorna TRUE de inmediato sin leer el resto de la tabla. IN construye y materializa un array gigante en memoria primero."
+            },
+            {
+                question: "Agregaciones: Tienes la columna [Bono] con los valores (100, NULL, 50). ¿Cuál es el resultado matemático de la expresión: SUM(Bono)/COUNT(*) versus AVG(Bono)?",
+                options: [
+                    "Ambos devuelven 75.",
+                    "Ambos devuelven 50.",
+                    "SUM/COUNT(*) devuelve 50, mientras que AVG devuelve 75.",
+                    "Arrojará un error de división por cero por culpa del NULL."
+                ],
+                correct: 2,
+                explanation: "SUM ignora NULLs (100+50=150). COUNT(*) cuenta físicas totales (3 filas), ergo 150/3 = 50. Sin embargo, AVG() divide la suma solo entre las filas NO nulas (2 filas válidas), ergo 150/2 = 75. Una trampa clásica."
+            },
+            {
+                question: "Lógica Relacional: En una consulta compleja, ¿cuál es el orden EXACTO en el que el motor SQL evalúa lógicamente las cláusulas?",
+                options: [
+                    "SELECT -> FROM -> JOIN -> WHERE -> GROUP BY -> HAVING",
+                    "FROM -> WHERE -> JOIN -> GROUP BY -> SELECT -> HAVING",
+                    "JOIN -> FROM -> WHERE -> HAVING -> GROUP BY -> SELECT",
+                    "FROM -> JOIN -> WHERE -> GROUP BY -> HAVING -> SELECT"
+                ],
+                correct: 3,
+                explanation: "Orden estricto: Trae las tablas (FROM), las cruza en memoria (JOIN), filtra filas base (WHERE), colapsa/agrupa (GROUP BY), filtra los grupos colapsados (HAVING), y por último formatea las columnas de salida (SELECT)."
+            },
+            {
+                question: "Agregaciones Condicionales: ¿Cómo implementas correctamente un pivote matricial (filas a columnas) usando agregaciones estándar de SQL ANSI sin usar extensiones de motor?",
+                options: [
+                    "Usando múltiples sentencias UNION ALL combinadas con GROUP BY.",
+                    "Combinando la función SUM() con una expresión interna CASE WHEN en el SELECT.",
+                    "Utilizando CROSS JOIN sobre la misma tabla filtrando por la columna de categoría.",
+                    "No es posible en SQL puro, requiere PL/SQL, cursores temporales o Python."
+                ],
+                correct: 1,
+                explanation: "El patrón `SUM(CASE WHEN categoria = 'A' THEN monto ELSE 0 END) AS Total_A` con un GROUP BY permite barrer la tabla una sola vez (O(n)) acumulando valores dinámicamente en columnas. Es el estándar de oro en reporting."
+            },
+            {
+                question: "Filtros (SARGability): Tienes un índice B-Tree en la columna 'fecha_alta'. ¿Qué predicado en el WHERE obligará al motor a destruir el uso del índice y ejecutar un escaneo total?",
+                options: [
+                    "WHERE fecha_alta >= '2026-01-01' AND fecha_alta < '2026-02-01'",
+                    "WHERE fecha_alta BETWEEN '2026-01-01' AND '2026-01-31'",
+                    "WHERE CAST(fecha_alta AS DATE) = '2026-01-15'",
+                    "WHERE fecha_alta > '2026-01-01'"
+                ],
+                correct: 2,
+                explanation: "Aplicar cualquier función como CAST(), YEAR(), DATE() del lado izquierdo del igual corrompe el árbol de búsqueda B-Tree. El motor no tiene más opción que aplicar el CAST() matemáticamente sobre el millón de filas antes de poder evaluarlas."
+            }
+        ];
+
+        let currentQIndex = 0;
+        let score = 0;
+        let isAnswered = false;
+
+        const letters = ['A', 'B', 'C', 'D'];
+        
+        // DOM Elements
+        const elQuestionText = document.getElementById('question-text');
+        const elOptionsGrid = document.getElementById('options-grid');
+        const elExplanationBox = document.getElementById('explanation-box');
+        const elExplanationText = document.getElementById('explanation-text');
+        const elNextBtn = document.getElementById('next-btn');
+        const elScore = document.getElementById('quiz-score');
+        const elCounter = document.getElementById('q-counter');
+        const elQuizInterface = document.getElementById('quiz-interface');
+        const elResultsInterface = document.getElementById('results-interface');
+
+        function loadQuestion() {
+            isAnswered = false;
+            elExplanationBox.style.display = 'none';
+            elNextBtn.style.display = 'none';
+            
+            const q = quizData[currentQIndex];
+            elCounter.innerText = `Pregunta ${currentQIndex + 1}/${quizData.length}`;
+            elQuestionText.innerText = q.question;
+            
+            elOptionsGrid.innerHTML = '';
+            
+            q.options.forEach((opt, idx) => {
+                const btn = document.createElement('div');
+                btn.className = 'option-btn';
+                btn.innerHTML = `
+                    <div class="option-letter">${letters[idx]}</div>
+                    <div class="option-text">${opt}</div>
+                `;
+                btn.onclick = () => handleAnswer(idx, btn);
+                elOptionsGrid.appendChild(btn);
+            });
+        }
+
+        function handleAnswer(selectedIndex, btnElement) {
+            if (isAnswered) return;
+            isAnswered = true;
+            
+            const q = quizData[currentQIndex];
+            const allBtns = elOptionsGrid.children;
+            
+            // Disable all
+            for (let b of allBtns) b.classList.add('disabled');
+            
+            if (selectedIndex === q.correct) {
+                btnElement.classList.add('correct');
+                score += 100; // 100 points per hard question
+                elScore.innerText = score;
+            } else {
+                btnElement.classList.add('wrong');
+                // Reveal correct
+                allBtns[q.correct].classList.remove('disabled');
+                allBtns[q.correct].classList.add('correct');
+            }
+            
+            // Show Explanation
+            elExplanationText.innerText = q.explanation;
+            elExplanationBox.style.display = 'block';
+            
+            // Show Next Button
+            elNextBtn.style.display = 'block';
+            if (currentQIndex === quizData.length - 1) {
+                elNextBtn.innerHTML = `Analizar Desempeño Final <i class="fa-solid fa-flag-checkered" style="margin-left: 8px;"></i>`;
+            }
+        }
+
+        elNextBtn.onclick = () => {
+            currentQIndex++;
+            if (currentQIndex < quizData.length) {
+                loadQuestion();
+            } else {
+                showResults();
+            }
+        };
+
+        function showResults() {
+            elQuizInterface.style.display = 'none';
+            elResultsInterface.style.display = 'flex';
+            
+            const points = score / 100;
+            const percentage = (points / quizData.length) * 100;
+            
+            document.getElementById('final-score-text').innerText = `${points}/${quizData.length}`;
+            document.getElementById('score-circle').style.setProperty('--progress', `${percentage}%`);
+            
+            const msg = document.getElementById('result-message');
+            if (points === 6) {
+                msg.innerText = "¡HACKER DETECTADO! Un puntaje perfecto en dificultad máxima. Eres un arquitecto de bases de datos de élite.";
+                msg.style.color = "var(--primary)";
+            } else if (points >= 4) {
+                msg.innerText = "Nivel Senior comprobado. Sobreviviste a preguntas técnicas diseñadas para confundir a desarrolladores experimentados.";
+                msg.style.color = "var(--success)";
+            } else {
+                msg.innerText = "Evaluación brutal. Has caído en las trampas técnicas de la sintaxis SQL. Revisa a fondo el análisis forense de cada pregunta.";
+                msg.style.color = "#ef4444";
+            }
+        }
+
+        function resetQuiz() {
+            currentQIndex = 0;
+            score = 0;
+            elScore.innerText = score;
+            elQuizInterface.style.display = 'block';
+            elResultsInterface.style.display = 'none';
+            document.getElementById('score-circle').style.setProperty('--progress', `0%`);
+            loadQuestion();
+        }
+
+        // INIT
+        updatePresentation();
+        loadQuestion();
+
+    </script>
+</body>
+</html>
